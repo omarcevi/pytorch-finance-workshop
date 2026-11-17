@@ -1,0 +1,11 @@
+# Yahoo Finance Kullanım Koşulları gereği ham piyasa verisi (CSV/Parquet) git geçmişine eklenmez
+data/*.csv
+data/*.parquet
+
+# Python ve test önbellekleri
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.env
