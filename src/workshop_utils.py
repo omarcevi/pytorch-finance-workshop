@@ -7,7 +7,9 @@ and the 'catch up' functions run at the start of every part.
 
 from __future__ import annotations
 
+import contextlib
 import io
+import logging
 import os
 import random
 import urllib.request
@@ -885,6 +887,59 @@ def plot_direction_results(
 
     fig.tight_layout()
     return fig
+
+
+# --- Notebook helpers: setup and friendly messages ---------------------------------------
+
+
+class WorkshopCheckError(AssertionError):
+    """Raised by a TODO self-check: says what is wrong and gives a hint."""
+
+    def __init__(self, todo: int, problem: str, hint: str) -> None:
+        super().__init__(f"TODO {todo}: {problem}")
+        self.todo = todo
+        self.problem = problem
+        self.hint = hint
+
+
+def friendly_lines(value: BaseException) -> list[str] | None:
+    """Short learner-facing lines for an unfilled TODO or a failed check; None for any other error."""
+    if isinstance(value, WorkshopCheckError):
+        return [f"❌ TODO {value.todo}: {value.problem}", f"💡 Hint: {value.hint}"]
+    if isinstance(value, NotImplementedError) and str(value).startswith("TODO"):
+        return [
+            f"✏️ {value} isn't done yet.",
+            "Replace the raise NotImplementedError(...) line with your code, then run the cell again.",
+        ]
+    return None
+
+
+def setup_notebook() -> None:
+    """Projector-friendly charts, quiet yfinance logs and, in IPython, friendly TODO/check messages."""
+    plt.rcParams.update({"font.size": 12, "axes.titlesize": 13, "axes.labelsize": 12, "legend.fontsize": 10})
+    logging.getLogger("yfinance").setLevel(logging.CRITICAL)
+
+    try:
+        from IPython import get_ipython
+    except ImportError:  # pragma: no cover - IPython ships with Jupyter and Colab
+        return
+    shell = get_ipython()
+    if shell is None:
+        return
+    with contextlib.suppress(Exception):
+        from matplotlib_inline.backend_inline import set_matplotlib_formats
+
+        set_matplotlib_formats("retina")
+
+    # IPython (7.x in Colab, 9.x locally) ignores the handler's return value, so the handler shows the output itself.
+    def _handler(self, etype, value, tb, tb_offset=None):
+        lines = friendly_lines(value)
+        if lines is not None:
+            self._showtraceback(etype, value, lines)
+        else:
+            self.showtraceback((etype, value, tb), tb_offset=tb_offset)
+
+    shell.set_custom_exc((NotImplementedError, WorkshopCheckError), _handler)
 
 
 # --- 'Catch up' functions ----------------------------------------------------------------
