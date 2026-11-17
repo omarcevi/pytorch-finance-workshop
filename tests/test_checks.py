@@ -185,7 +185,7 @@ def test_check_todo_6(capsys: pytest.CaptureFixture[str]) -> None:
 # --- TODO 7 ------------------------------------------------------------------------------
 
 
-def _train(loader: DataLoader, epochs: int, variant: str) -> tuple[nn.Module, list[float]]:
+def _train(loader: DataLoader, epochs: int, variant: str, val_loader: DataLoader | None = None) -> tuple[nn.Module, list[float]]:
     set_seed(42)
     model = GoodLSTM(input_dim=len(FEATURE_COLS), hidden_dim=32)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -195,7 +195,7 @@ def _train(loader: DataLoader, epochs: int, variant: str) -> tuple[nn.Module, li
         model.train()
         batch_losses = []
         for bx, by in loader:
-            if variant != "zero_grad_after_step":
+            if variant not in ("zero_grad_after_step", "no_zero_grad"):
                 optimizer.zero_grad()
             loss = criterion(model(bx), by)
             loss.backward()
@@ -205,6 +205,11 @@ def _train(loader: DataLoader, epochs: int, variant: str) -> tuple[nn.Module, li
                 optimizer.zero_grad()
             batch_losses.append(loss.item())
         losses.append(float(np.mean(batch_losses)))
+        if val_loader is not None:  # like the notebook: a validation pass after every epoch
+            model.eval()
+            with torch.no_grad():
+                for vx, vy in val_loader:
+                    criterion(model(vx), vy)
     return model, losses
 
 
@@ -220,6 +225,15 @@ def test_check_todo_7(state: dict, capsys: pytest.CaptureFixture[str]) -> None:
 
     model, losses = _train(loader, 2, "zero_grad_after_step")
     check_todo_7(model, loader, losses, epochs=2)
+
+    # The notebook runs a validation pass after every epoch; creating that loader iterator draws from torch's RNG.
+    _, val_ds, *_ = _datasets(state)
+    model, losses = _train(loader, 2, "correct", val_loader=DataLoader(val_ds, batch_size=64, shuffle=False))
+    check_todo_7(model, loader, losses, epochs=2)
+
+    model, losses = _train(loader, 2, "no_zero_grad")
+    with pytest.raises(WorkshopCheckError, match="don't match"):
+        check_todo_7(model, loader, losses, epochs=2)
 
     model, losses = _train(loader, 2, "no_step")
     with pytest.raises(WorkshopCheckError, match="optimizer.step"):

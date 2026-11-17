@@ -1107,7 +1107,11 @@ def check_todo_7(
     lr: float = 0.001,
     seed: int = 42,
 ) -> None:
-    """TODO 7: the five-step training loop, compared with a reference run from the same seed."""
+    """TODO 7: the five-step training loop, compared with a reference first epoch from the same seed.
+
+    Only the first epoch is compared: the validation pass after each epoch creates a DataLoader iterator,
+    which draws from torch's RNG and changes the shuffling of later epochs.
+    """
     hint = "in each batch: optimizer.zero_grad() → pred = demo_model(bx) → loss = criterion(pred, by) → loss.backward() → optimizer.step()."
     if len(train_losses) != epochs:
         raise WorkshopCheckError(7, f"train_losses has {len(train_losses)} values; expected {epochs} (one per epoch).", hint)
@@ -1124,18 +1128,16 @@ def check_todo_7(
         ref = model_cls(**dims)
         optimizer = torch.optim.Adam(ref.parameters(), lr=lr)
         criterion = nn.MSELoss()
-        ref_losses = []
-        for _ in range(epochs):
-            ref.train()
-            batch_losses = []
-            for bx, by in train_loader:
-                optimizer.zero_grad()
-                loss = criterion(ref(bx), by)
-                loss.backward()
-                optimizer.step()
-                batch_losses.append(loss.item())
-            ref_losses.append(float(np.mean(batch_losses)))
-    if not np.allclose(train_losses, ref_losses, rtol=1e-4, atol=1e-9):
+        ref.train()
+        batch_losses = []
+        for bx, by in train_loader:
+            optimizer.zero_grad()
+            loss = criterion(ref(bx), by)
+            loss.backward()
+            optimizer.step()
+            batch_losses.append(loss.item())
+        ref_first_epoch = float(np.mean(batch_losses))
+    if not np.isclose(train_losses[0], ref_first_epoch, rtol=1e-4, atol=1e-9):
         raise WorkshopCheckError(7, "the losses don't match a correct training loop.", hint)
     print(f"✅ TODO 7 looks right: train loss went from {train_losses[0]:.6f} to {train_losses[-1]:.6f}.")
 

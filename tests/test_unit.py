@@ -216,6 +216,21 @@ def test_make_starter_strips_all_solution_blocks() -> None:
     assert sol_todo_cells == sta_todo_cells
 
 
+def test_every_todo_cell_has_a_check_and_a_hint() -> None:
+    """Every solution cell with a TODO block calls its self-check and carries a hint for the starter."""
+    sol_nb = json.loads((ROOT / "notebooks" / "workshop_solution.ipynb").read_text(encoding="utf-8"))
+    todo_cells = [c for c in sol_nb["cells"] if c["cell_type"] == "code" and "# BEGIN SOLUTION" in "".join(c["source"])]
+    numbers = []
+    for cell in todo_cells:
+        source = "".join(cell["source"])
+        found = re.findall(r"check_todo_(\d+)\(", source)
+        assert found, f"{cell['id']} has no check_todo_ call"
+        numbers.extend(int(n) for n in found)
+        hint = cell.get("metadata", {}).get("workshop", {}).get("hint")
+        assert isinstance(hint, str) and hint.strip(), f"{cell['id']} has no hint"
+    assert numbers == list(range(1, 10))
+
+
 def test_make_starter_adds_help_cells() -> None:
     """Each TODO cell is followed by a collapsed hint (when the solution cell has one) and a collapsed solution."""
 
