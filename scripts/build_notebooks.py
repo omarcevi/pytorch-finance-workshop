@@ -57,6 +57,19 @@ if not any((pathlib.Path(p) / "workshop_utils.py").exists() for p in sys.path + 
         "workshop_utils.py",
     )"""
 
+# Yetiştir hücreleri sıfırlanmış bir çalışma zamanında tek başına çalışır; bölümün sonraki hücrelerinin
+# kullandığı ortak isimleri (np, pd, plt, torch, nn, DataLoader, FEATURE_COLS) da burada yeniden yükleriz.
+CATCHUP_BOOTSTRAP = YETISTIR_BOOTSTRAP + """
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
+from workshop_utils import FEATURE_COLS, set_seed"""
+
+HOOK_IMAGE_URL = "https://raw.githubusercontent.com/omarcevi/pytorch-finance-workshop/main/docs/hook_preview.png"
+
 
 def create_solution_notebook() -> dict:
     cells: list[dict] = [
@@ -136,8 +149,8 @@ Peki **bu modelle gerçekten para kazanabilir miyiz?** Yoksa gözümüzün önü
         ),
         code_cell(
             "sec0-hook-plot",
-            """# Bölüm 4'te eğiteceğimiz LSTM fiyat tahmin modelinin test seti çıktısını önceden görelim
-import pathlib
+            f"""# Bölüm 4'te eğiteceğimiz LSTM fiyat tahmin modelinin test seti çıktısını önceden görelim
+import contextlib, io, pathlib
 from IPython.display import Image, display
 from workshop_utils import plot_price_deception, yetistir_bolum_4
 
@@ -147,10 +160,13 @@ _hook_candidates = [
     pathlib.Path("/content/pytorch-finance-workshop/docs/hook_preview.png"),
 ]
 _hook_img = next((p for p in _hook_candidates if p.exists()), None)
-if _hook_img is not None:
-    display(Image(filename=str(_hook_img), width=780))
-else:
-    _s4 = yetistir_bolum_4("THYAO.IS")
+try:
+    # Colab'da docs/ klasörü yoktur: ön-üretilmiş görseli GitHub'dan gösteririz
+    display(Image(filename=str(_hook_img), width=780) if _hook_img else Image(url="{HOOK_IMAGE_URL}", embed=True, width=780))
+except Exception:
+    # Ağ da yoksa grafiği burada üretiriz; Bölüm 4'ün cevabını (MAE değerlerini) ekrana basmamak için çıktıyı gizleriz
+    with contextlib.redirect_stdout(io.StringIO()):
+        _s4 = yetistir_bolum_4("THYAO.IS")
     plot_price_deception(_s4["test_dates"], _s4["price_res"]["actual_prices"], _s4["price_res"]["predicted_prices"])
     plt.show()""",
         ),
@@ -167,7 +183,7 @@ Finansal zaman serilerinde her işlem günü beş temel sayıyla özetlenir (**O
         code_cell(
             "sec1-catchup",
             f"""# @title 🔄 Yetiştir: Bölüm 1 (Çalışma zamanı sıfırlandıysa çalıştırın) {{ display-mode: "form" }}
-{YETISTIR_BOOTSTRAP}
+{CATCHUP_BOOTSTRAP}
 from workshop_utils import set_seed, load_prices, plot_ohlcv
 set_seed(42)
 TICKER = "THYAO.IS"
@@ -209,7 +225,7 @@ Borsa hafta sonları ve resmi tatillerde kapalıdır; ayrıca ham fiyat serileri
         code_cell(
             "sec2-catchup",
             f"""# @title 🔄 Yetiştir: Bölüm 2 (Önceki bölümü atladıysanız çalıştırın) {{ display-mode: "form" }}
-{YETISTIR_BOOTSTRAP}
+{CATCHUP_BOOTSTRAP}
 from workshop_utils import yetistir_bolum_1, compute_rsi, chronological_split, fit_scaler_on_train, plot_chronological_split, FEATURE_COLS
 _s1 = yetistir_bolum_1("THYAO.IS")
 TICKER = _s1["ticker"]
@@ -284,7 +300,7 @@ PyTorch'un temel yapı taşı `torch.Tensor` nesnesidir (NumPy dizilerine benzer
         code_cell(
             "sec3-catchup",
             f"""# @title 🔄 Yetiştir: Bölüm 3 (Önceki bölümü atladıysanız çalıştırın) {{ display-mode: "form" }}
-{YETISTIR_BOOTSTRAP}
+{CATCHUP_BOOTSTRAP}
 from workshop_utils import yetistir_bolum_2, SlidingWindowDataset, LSTMModel, set_seed, plot_training_curves
 _s2 = yetistir_bolum_2("THYAO.IS")
 TICKER = _s2["ticker"]
@@ -414,7 +430,7 @@ plt.show()""",
         code_cell(
             "sec4-catchup",
             f"""# @title 🔄 Yetiştir: Bölüm 4 (Moladan sonra temiz başlangıç için çalıştırın) {{ display-mode: "form" }}
-{YETISTIR_BOOTSTRAP}
+{CATCHUP_BOOTSTRAP}
 from workshop_utils import yetistir_bolum_3, train_price_lstm, plot_price_deception, plot_zoom_and_lag
 _s3 = yetistir_bolum_3("THYAO.IS")
 TICKER = _s3["ticker"]
@@ -494,7 +510,7 @@ Dünün fiyatını kopyalama tuzağından kurtulmak için problemi doğru tanım
         code_cell(
             "sec5-catchup",
             f"""# @title 🔄 Yetiştir: Bölüm 5 (Önceki bölümü atladıysanız çalıştırın) {{ display-mode: "form" }}
-{YETISTIR_BOOTSTRAP}
+{CATCHUP_BOOTSTRAP}
 from workshop_utils import yetistir_bolum_4, train_direction_classifier, walk_forward_evaluation, plot_direction_results, FEATURE_COLS
 _s4 = yetistir_bolum_4("THYAO.IS")
 TICKER = _s4["ticker"]
@@ -564,7 +580,7 @@ plt.show()""",
         code_cell(
             "sec6-catchup",
             f"""# @title 🔄 Yetiştir: Bölüm 6 (Meydan okumalar için tüm değişkenleri hazırlar) {{ display-mode: "form" }}
-{YETISTIR_BOOTSTRAP}
+{CATCHUP_BOOTSTRAP}
 from workshop_utils import (
     yetistir_bolum_6, load_prices, build_features, chronological_split,
     fit_scaler_on_train, train_direction_classifier, backtest_with_costs,
