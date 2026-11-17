@@ -23,8 +23,6 @@ Deep learning on financial time series is full of traps: models that look "perfe
 - **Starter notebook (the one we fill in together during the workshop):** [Open in Colab](https://colab.research.google.com/github/omarcevi/pytorch-finance-workshop/blob/main/notebooks/workshop_starter.ipynb)
 - **Solution notebook (reference with all code and outputs filled in):** [Open in Colab](https://colab.research.google.com/github/omarcevi/pytorch-finance-workshop/blob/main/notebooks/workshop_solution.ipynb)
 
-**Language note:** the workshop was taught in Turkish, so the notebooks' text, cell titles and printed output are in Turkish. The code in this guide is identical to the notebooks; only the comments are translated, and each expected output is explained in English.
-
 **Schedule (Wednesday 18 November 2026, 16:30–18:45 · DMF-214):**
 
 | Time | Part | What we do and learn |
@@ -48,7 +46,7 @@ Deep learning on financial time series is full of traps: models that look "perfe
 - **Adjusted prices (`auto_adjust=True`):** Dividends and stock splits create artificial drops in the raw price. With `auto_adjust=True`, `yfinance` returns all historical OHLC prices adjusted for splits and dividends.
 - **A fallback that always works:** When 40 people in one room hit Yahoo Finance at once, a rate limit (`YFRateLimitError`) is likely. On an error or an empty table, `load_prices` automatically loads snapshot data instead.
 
-**Catch-up cell:** `🔄 Yetiştir: Bölüm 1 (Çalışma zamanı sıfırlandıysa çalıştırın)` (*"Catch up: Part 1 — run this if your runtime was reset"*)
+**Catch-up cell:** `🔄 Catch up: Part 1 (run this if your runtime was reset)`
 
 **Step-by-step code walkthrough:**
 
@@ -60,7 +58,7 @@ TICKER = "THYAO.IS"
 # TODO 1 solution:
 raw_df = load_prices(TICKER, start="2015-01-01", end="2026-11-17")
 
-print(f"Veri boyutu: {raw_df.shape} | Tarih aralığı: {raw_df.index.min().date()} -> {raw_df.index.max().date()}")
+print(f"Data shape: {raw_df.shape} | Date range: {raw_df.index.min().date()} -> {raw_df.index.max().date()}")
 display(raw_df.tail(5))
 ```
 
@@ -76,8 +74,8 @@ plt.show()
 *Expected output: a table of shape `(3023, 5)` (`2015-01-01 -> 2026-11-16`) and a close-price chart that climbs from single-digit lira in 2015–2016 to over 300 TL in 2026.*
 
 **Troubleshooting (if this step fails):**
-- **Yahoo Finance rate limit (`YFRateLimitError` or an empty table):** Nothing to do. `load_prices` prints `⚠️ Yahoo Finance'ten veri alınamadı... Yedek veri (snapshot) yükleniyor...` ("could not get data from Yahoo Finance, loading the snapshot") and loads the local or online snapshot.
-- **`NameError: name 'load_prices' is not defined`:** Your Colab runtime has probably restarted. Run the **`🔄 Yetiştir: Bölüm 1`** cell at the top of Part 1.
+- **Yahoo Finance rate limit (`YFRateLimitError` or an empty table):** Nothing to do. `load_prices` prints `⚠️ Could not get THYAO.IS from Yahoo Finance (...). Loading the snapshot data...` and loads the local or online snapshot.
+- **`NameError: name 'load_prices' is not defined`:** Your Colab runtime has probably restarted. Run the **`🔄 Catch up: Part 1`** cell at the top of Part 1.
 
 ## Part 2 · Cleaning and Features
 
@@ -88,7 +86,7 @@ plt.show()
 - **Why log returns instead of prices?** 6 TL in 2015 and 300 TL in 2026 are not on the same scale. The log return $r_t = \ln(P_t / P_{t-1})$ makes the series scale-free and stationary.
 - **Chronological split and scaler leakage:** A time series is never split at random (`shuffle=True`). And if `StandardScaler.fit()` sees all the data, the mean and standard deviation of 2026 leak into the 2018 training data.
 
-**Catch-up cell:** `🔄 Yetiştir: Bölüm 2 (Önceki bölümü atladıysanız çalıştırın)` (*"Catch up: Part 2 — run this if you skipped the previous part"*)
+**Catch-up cell:** `🔄 Catch up: Part 2 (run this if you skipped the previous part)`
 
 **Step-by-step code walkthrough:**
 
@@ -116,7 +114,7 @@ train_df, val_df, test_df = chronological_split(feat_df, train_ratio=0.70, val_r
 
 [![THYAO.IS chronological train, validation and test regions](images/chronological_split.svg)](images/chronological_split.svg)
 
-*Expected output: `Train: 2106 gün (2015-01-21 -> 2023-04-05)`, `Val: 451 gün (2023-04-06 -> 2025-01-24)`, `Test: 452 gün (2025-01-27 -> 2026-11-16)` ("gün" means trading days).*
+*Expected output: `Train: 2106 days (2015-01-21 -> 2023-04-05)`, `Val  : 451 days (2023-04-06 -> 2025-01-24)`, `Test : 452 days (2025-01-27 -> 2026-11-16)` (trading days).*
 
 3. **TODO 4 (`sec2-scaler-code`):** We call `fit_transform` on **`train_df` only**, and only `transform` on `val_df` and `test_df`:
 
@@ -132,7 +130,7 @@ x_test = scaler.transform(test_df[FEATURE_COLS].values.astype(np.float32))
 ```
 
 **Troubleshooting (if this step fails):**
-- **`KeyError: 'log_return'`:** You probably jumped to the split cell before running `sec2-feat-code`. Run the cells in order, or use the **`🔄 Yetiştir: Bölüm 2`** cell at the top of the part.
+- **`KeyError: 'log_return'`:** You probably jumped to the split cell before running `sec2-feat-code`. Run the cells in order, or use the **`🔄 Catch up: Part 2`** cell at the top of the part.
 - **`ValueError: Found array with 0 sample(s)`:** A column name in the rolling-window code is probably misspelled before `dropna()`. Check the three lines above.
 
 ## Part 3 · PyTorch Basics
@@ -143,7 +141,7 @@ x_test = scaler.transform(test_df[FEATURE_COLS].values.astype(np.float32))
 - **3-D LSTM input:** `nn.LSTM(..., batch_first=True)` expects input of shape `(batch_size, seq_len, features)`. In our setup one batch is `(64, 30, 4)`: 64 samples, 30 trading days, 4 features.
 - **Shuffling windows inside the training set (`shuffle=True`):** Our train, validation and test sets are strictly separated in time. Shuffling the ready-made 30-day windows *inside* the training set with `DataLoader(..., shuffle=True)` does not leak anything, because each window keeps its own 30-day order.
 
-**Catch-up cell:** `🔄 Yetiştir: Bölüm 3 (Önceki bölümü atladıysanız çalıştırın)` (*"Catch up: Part 3 — run this if you skipped the previous part"*)
+**Catch-up cell:** `🔄 Catch up: Part 3 (run this if you skipped the previous part)`
 
 **Step-by-step code walkthrough:**
 
@@ -194,14 +192,14 @@ class SimpleLSTM(nn.Module):
 
 **Expected output (tensor shapes and training):**
 ```text
-1) Giriş tensörü (bx)          : torch.Size([64, 30, 4])
-2) LSTM tüm adımlar (lstm_out) : torch.Size([64, 30, 32])
-3) Son zaman adımı ([:, -1, :]): torch.Size([64, 32])
-4) Model çıktısı (pred_out)    : torch.Size([64])
-Son Epoch (10) -> Train MSE: 0.000646 | Val MSE: 0.000509
+1) Input tensor (bx)           : torch.Size([64, 30, 4])
+2) LSTM all steps (lstm_out)   : torch.Size([64, 30, 32])
+3) Last time step ([:, -1, :]) : torch.Size([64, 32])
+4) Model output (pred_out)     : torch.Size([64])
+Last epoch (10) -> Train MSE: 0.000646 | Val MSE: 0.000509
 ```
 
-*The four lines are the input batch, the LSTM output for every time step, the last time step, and the model output. The final MSE values can differ slightly between PyTorch versions.*
+*The final MSE values can differ slightly between PyTorch versions.*
 
 **Troubleshooting (if this step fails):**
 - **Shape error (`RuntimeError: input.size(-1) must be equal to input_size`):** Make sure `SimpleLSTM(input_dim=...)` is `len(FEATURE_COLS)` (that is, `4`) and that `nn.LSTM` has `batch_first=True`.
@@ -216,7 +214,7 @@ Son Epoch (10) -> Train MSE: 0.000646 | Val MSE: 0.000509
 - **The naive baseline:** The simplest rule there is, with no AI at all: *"tomorrow's price equals today's close"* ($\hat{P}_{t+1} = P_t$).
 - **The one-day-lag illusion:** Daily stock prices are very close to a random walk ($P_{t+1} = P_t + \epsilon$). An LSTM minimising squared error (MSE) learns to copy the last price it saw ($P_t$) instead of predicting the future.
 
-**Catch-up cell:** `🔄 Yetiştir: Bölüm 4 (Moladan sonra temiz başlangıç için çalıştırın)` (*"Catch up: Part 4 — run this for a clean start after the break"*)
+**Catch-up cell:** `🔄 Catch up: Part 4 (run this for a clean start after the break)`
 
 **Step-by-step code walkthrough:**
 
@@ -237,17 +235,17 @@ naive_rmse = float(np.sqrt(np.mean((actual_prices - naive_prices) ** 2)))
 
 **Expected output (measured values):**
 ```text
-📊 LSTM Fiyat Modeli   -> MAE: 5.07 TL | RMSE: 6.86 TL
-📏 Saf Referans (P_t)  -> MAE: 4.55 TL | RMSE: 6.26 TL
-👉 Sonuç: Saf 'Yarın = Bugün' tahmini, LSTM'den 0.52 TL daha düşük hataya sahip!
-Tahminin BUGÜNÜN gerçek fiyatıyla korelasyonu (Lag 0): 0.9451
-Tahminin DÜNÜN gerçek fiyatıyla korelasyonu   (Lag 1): 0.9915
+📊 LSTM price model     -> MAE: 5.07 TL | RMSE: 6.86 TL
+📏 Naive baseline (P_t) -> MAE: 4.55 TL | RMSE: 6.26 TL
+👉 Result: the naive 'tomorrow = today' rule has 0.52 TL lower error than the LSTM!
+Correlation of the prediction with TODAY's actual price     (Lag 0): 0.9451
+Correlation of the prediction with YESTERDAY's actual price (Lag 1): 0.9915
 ```
 
-*The naive "tomorrow = today" rule has 0.52 TL lower error than the LSTM. And look at the correlations: the LSTM prediction correlates `0.9451` with today's actual price, but **`0.9915` with yesterday's actual price (`Lag 1`)**. The red line is the blue line shifted one day to the right.*
+*Look at the correlations: the LSTM prediction correlates `0.9451` with today's actual price, but **`0.9915` with yesterday's actual price (`Lag 1`)**. The red line is the blue line shifted one day to the right.*
 
 **Troubleshooting (if this step fails):**
-- **Your Colab connection dropped after the break:** Run the **`🔄 Yetiştir: Bölüm 4`** cell at the top of the part, then continue with `sec4-train-code`.
+- **Your Colab connection dropped after the break:** Run the **`🔄 Catch up: Part 4`** cell at the top of the part, then continue with `sec4-train-code`.
 
 ## Part 5 · The Right Setup
 
@@ -258,7 +256,7 @@ Tahminin DÜNÜN gerçek fiyatıyla korelasyonu   (Lag 1): 0.9915
 - **Majority-class baseline:** If 52% of training days are up days, a naive model that says "up" for every test day scores about 52%. We measure the model with both `Accuracy` and **`Balanced Accuracy`**, which is sensitive to class imbalance.
 - **Why is the honest result around 50–55%?** Efficient markets, heavy daily noise and changing macroeconomic regimes make predicting direction from past prices alone very close to a coin toss.
 
-**Catch-up cell:** `🔄 Yetiştir: Bölüm 5 (Önceki bölümü atladıysanız çalıştırın)` (*"Catch up: Part 5 — run this if you skipped the previous part"*)
+**Catch-up cell:** `🔄 Catch up: Part 5 (run this if you skipped the previous part)`
 
 **Step-by-step code walkthrough:**
 
@@ -289,33 +287,33 @@ Then we run `sec5-wf-code` for 4-fold walk-forward validation and the confusion 
 
 **Expected output (measured values):**
 ```text
-🎯 LSTM Test Doğruluğu (Accuracy)         : %54.74
-⚖️ LSTM Dengeli Doğruluk (Balanced Acc)   : %53.51
-📏 Çoğunluk Sınıfı Referansı (Baseline)   : %51.90
-Walk-Forward Ortalama Doğruluk: %51.66
+🎯 LSTM test accuracy       : 54.74%
+⚖️ LSTM balanced accuracy   : 53.51%
+📏 Majority-class baseline  : 51.90%
+Walk-forward mean accuracy: 51.66%
 ```
 
 *Test accuracy is 54.74% against a 51.90% majority-class baseline, and the 4-fold walk-forward average is 51.66%. The test set has only 422 predictions, so the 95% confidence interval around 54.74% is about ±4.8 points (roughly 50% to 59.5%): this result cannot be told apart from a coin toss or from the baseline.*
 
 **Troubleshooting (if this step fails):**
-- **`ValueError: Target size ... must be the same as input size`:** Make sure you use `train_df["up_day"].values.astype(np.float32)` as the target vector. If variables are missing, run the **`🔄 Yetiştir: Bölüm 5`** cell.
+- **`ValueError: Target size ... must be the same as input size`:** Make sure you use `train_df["up_day"].values.astype(np.float32)` as the target vector. If variables are missing, run the **`🔄 Catch up: Part 5`** cell.
 
 ## Part 6 · Challenges
 
 **Goal:** Use the leak-free evaluation pipeline we built to try other tickers, a new feature (`volume_change`), other architectures (`GRU`, `TinyTransformer`), and a strategy test with trading costs (`15 bps`).
 
-**Catch-up cell:** `🔄 Yetiştir: Bölüm 6 (Meydan okumalar için tüm değişkenleri hazırlar)` (*"Catch up: Part 6 — prepares every variable for the challenges"*)
+**Catch-up cell:** `🔄 Catch up: Part 6 (prepares every variable for the challenges)`
 
 **Challenges and solution hints:**
 
-1. **Challenge 1 — Try your own ticker:** Load data with `load_prices("ASELS.IS")`, `load_prices("BTC-USD")` or `load_prices("AAPL")`. Pass an invalid ticker (`load_prices("GECERSIZ_XYZ")`) and see how the `ValueError` is caught.
+1. **Challenge 1 — Try your own ticker:** Load data with `load_prices("ASELS.IS")`, `load_prices("BTC-USD")` or `load_prices("AAPL")`. Pass an invalid ticker (`load_prices("INVALID_TICKER_XYZ")`) and see how the `ValueError` is caught.
 2. **Challenge 2 — Add the trading-volume feature (`volume_change`):** Pass `cols_5 = FEATURE_COLS + ["volume_change"]` to `fit_scaler_on_train` and retrain the model with five features (on `THYAO.IS` test accuracy comes out around `55.7%`; compare it with the ±4.8-point uncertainty from Part 5 before calling it an improvement).
 3. **Challenge 3 — `nn.GRU` instead of `nn.LSTM`, with a 15-day window:** Try the `GRU` model, which has fewer parameters, with `train_direction_classifier(..., window_size=15, model_cls=GRUModel)` (`Test Acc: 52.6%`).
 4. **Challenge 4 (Bonus) — `TinyTransformerModel` and a backtest with costs:** Call `backtest_with_costs(test_rets, cls_res["y_pred"], cost_bps=15.0)` and compare buy-and-hold with the strategy before and after a 0.15% commission-and-spread cost on every trade. On the THYAO test window the model is in the market only about one day in five and changes position just 29 times, so costs take little off: buy-and-hold ends at `0.99x`, the strategy at `1.24x` gross and `1.18x` net. Before believing it, ask why: one 22-month window, an accuracy indistinguishable from 50%, and a strategy that mostly sat in cash during a flat market. Rerun it with other seeds, tickers and walk-forward folds.
 
 **Troubleshooting (if this step fails):**
-- **`yeterli geçmiş veri yok` ("not enough history") for a BIST ticker you picked:** Recently listed stocks can have fewer than 120 days of data. Pick an older ticker or lower the `min_rows` parameter.
-- **To see the solution code:** Double-click the **`💡 Çözüm`** ("Solution") cell under each challenge in the notebook to open the code, or simply run it.
+- **`Not enough history` for a BIST ticker you picked:** Recently listed stocks can have fewer than 120 days of data. Pick an older ticker or lower the `min_rows` parameter.
+- **To see the solution code:** Double-click the **`💡 Solution`** cell under each challenge in the notebook to open the code, or simply run it.
 
 ## Further Reading and Resources
 

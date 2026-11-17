@@ -1,9 +1,8 @@
-"""Finansal Verilerle Yapay Zekâyı Buluşturmak — PyTorch Atölyesi Yardımcı Modülü.
+"""Bringing AI to Financial Data — PyTorch workshop helper module.
 
-Bu modül veri indirme (ve çevrimdışı/snapshot yedekleme), özellik mühendisliği,
-kronolojik veri bölme, kayan pencere (sliding window) veri kümeleri, PyTorch modelleri,
-görselleştirme yardımcıları ve her bölümün başındaki 'Yetiştir' (catch-up)
-fonksiyonlarını içerir.
+This module holds data download (with offline/snapshot fallbacks), feature engineering,
+the chronological split, sliding-window datasets, the PyTorch models, plotting helpers
+and the 'catch up' functions run at the start of every part.
 """
 
 from __future__ import annotations
@@ -25,14 +24,14 @@ from sklearn.preprocessing import StandardScaler
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
 
-# Varsayılan semboller ve tarih aralığı
+# Default tickers and date range
 DEFAULT_TICKERS: tuple[str, ...] = ("THYAO.IS", "ASELS.IS", "XU100.IS", "BTC-USD", "AAPL")
 DEFAULT_START: str = "2015-01-01"
 DEFAULT_END: str = "2026-11-17"
 MIN_HISTORY_ROWS: int = 120
 
-# Yahoo Finance kullanım koşulları gereği ham CSV'ler herkese açık git deposuna eklenmez.
-# Katılımcılar için yedek snapshot verisi tek bir sabit URL üzerinden veya yerel data/ klasöründen okunur.
+# Under the Yahoo Finance terms of use the raw CSVs are not added to the public git repo.
+# Participants read the snapshot from one fixed URL or from a local data/ folder.
 SNAPSHOT_BASE_URL: str = os.environ.get(
     "WORKSHOP_SNAPSHOT_URL",
     "https://gist.githubusercontent.com/omarcevi/ac2e894a14dd4d068a3baa9935631ec5/raw",
@@ -41,7 +40,7 @@ SNAPSHOT_BASE_URL: str = os.environ.get(
 FEATURE_COLS: list[str] = ["log_return", "roll_mean_5", "roll_std_10", "rsi_14"]
 REQUIRED_OHLCV_COLS: list[str] = ["Open", "High", "Low", "Close", "Volume"]
 
-# Tamamen çevrimdışı (ağsız ve yerel CSV'siz) temiz bir çalışma zamanı için kalibre edilmiş parametreler
+# Calibrated parameters for a completely offline runtime (no network and no local CSV)
 _OFFLINE_CALIBRATION: dict[str, dict[str, float]] = {
     "THYAO.IS": {"start_price": 6.50, "drift": 0.00132, "vol": 0.0245, "base_vol": 4.5e7, "seed": 101},
     "ASELS.IS": {"start_price": 1.45, "drift": 0.00185, "vol": 0.0235, "base_vol": 3.2e7, "seed": 202},
@@ -52,7 +51,7 @@ _OFFLINE_CALIBRATION: dict[str, dict[str, float]] = {
 
 
 def set_seed(seed: int = 42) -> None:
-    """Tüm rastgelelik kaynaklarını sabitler (tekrarlanabilirlik için)."""
+    """Fixes every source of randomness (for reproducibility)."""
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -63,7 +62,7 @@ def set_seed(seed: int = 42) -> None:
 
 
 def _candidate_data_dirs(custom_dir: Path | str | None = None) -> list[Path]:
-    """Yerel snapshot CSV dosyalarının aranacağı klasör listesini döndürür."""
+    """Returns the folders searched for local snapshot CSV files."""
     dirs: list[Path] = []
     if custom_dir is not None:
         dirs.append(Path(custom_dir))
@@ -88,13 +87,13 @@ def _candidate_data_dirs(custom_dir: Path | str | None = None) -> list[Path]:
 
 
 def _generate_calibrated_offline_df(ticker: str, start: str, end: str) -> pd.DataFrame:
-    """Ağ ve yerel CSV olmadığında varsayılan semboller için kalibre edilmiş yedek seri üretir."""
+    """Generates a calibrated synthetic series for the default tickers when there is no network and no local CSV."""
     cfg = _OFFLINE_CALIBRATION[ticker]
     rng = np.random.default_rng(int(cfg["seed"]))
     freq = "D" if ticker == "BTC-USD" else "B"
     dates = pd.date_range(start=start, end=end, freq=freq)
     n = len(dates)
-    # Gerçekçi volatilite kümelenmesi (GARCH benzeri) ve hafif negatif otokorelasyon
+    # Realistic volatility clustering (GARCH-like) and slight negative autocorrelation
     rets = np.zeros(n, dtype=np.float64)
     sigma = cfg["vol"]
     for i in range(1, n):
@@ -118,7 +117,7 @@ def _generate_calibrated_offline_df(ticker: str, start: str, end: str) -> pd.Dat
 
 
 def _normalize_ohlcv_df(df: pd.DataFrame, start: str | None, end: str | None) -> pd.DataFrame:
-    """DataFrame sütunlarını ve tarih indeksini standart OHLCV biçimine dönüştürür."""
+    """Brings the DataFrame's columns and date index into the standard OHLCV format."""
     if df is None or df.empty:
         return pd.DataFrame(columns=REQUIRED_OHLCV_COLS)
 
@@ -133,7 +132,7 @@ def _normalize_ohlcv_df(df: pd.DataFrame, start: str | None, end: str | None) ->
 
     missing_cols = [c for c in REQUIRED_OHLCV_COLS if c not in out.columns]
     if missing_cols:
-        raise ValueError(f"Veri kümesinde beklenen OHLCV sütunları eksik: {missing_cols}")
+        raise ValueError(f"The data is missing expected OHLCV columns: {missing_cols}")
 
     out = out[REQUIRED_OHLCV_COLS].dropna(how="all")
     if start:
@@ -150,15 +149,15 @@ def _load_snapshot_fallback(
     end: str | None,
     data_dir: Path | str | None = None,
 ) -> pd.DataFrame:
-    """Yerel data/ klasöründen, SNAPSHOT_BASE_URL'den veya çevrimdışı kalibre yedekten veri yükler."""
-    # 1. Yerel CSV dosyalarını kontrol et
+    """Loads data from a local data/ folder, from SNAPSHOT_BASE_URL, or from the calibrated offline generator."""
+    # 1. Check local CSV files
     for d in _candidate_data_dirs(data_dir):
         csv_path = d / f"{ticker}.csv"
         if csv_path.is_file():
             df = pd.read_csv(csv_path, index_col=0, parse_dates=True)
             return _normalize_ohlcv_df(df, start, end)
 
-    # 2. Uzak SNAPSHOT_BASE_URL adresini dene (çevrimdışı mod zorlanmadıysa)
+    # 2. Try the remote SNAPSHOT_BASE_URL (unless offline mode is forced)
     if os.environ.get("WORKSHOP_OFFLINE", "0") != "1" and SNAPSHOT_BASE_URL.startswith("http"):
         url = f"{SNAPSHOT_BASE_URL.rstrip('/')}/{ticker}.csv"
         try:
@@ -169,7 +168,7 @@ def _load_snapshot_fallback(
         except Exception:  # noqa: BLE001, S110
             pass
 
-    # 3. Varsayılan 5 sembolden biriyse çevrimdışı kalibre edilmiş seriyi üret
+    # 3. For one of the 5 default tickers, generate the calibrated offline series
     if ticker in _OFFLINE_CALIBRATION:
         df = _generate_calibrated_offline_df(
             ticker,
@@ -179,8 +178,8 @@ def _load_snapshot_fallback(
         return _normalize_ohlcv_df(df, start, end)
 
     raise ValueError(
-        f"'{ticker}' sembolü için ne Yahoo Finance'ten ne de yedek (snapshot) veriden "
-        "veri alınabildi. Lütfen geçerli bir sembol girin (örn. 'THYAO.IS', 'ASELS.IS', 'AAPL')."
+        f"Could not get data for '{ticker}' from Yahoo Finance or from the snapshot. "
+        "Please enter a valid ticker (e.g. 'THYAO.IS', 'ASELS.IS', 'AAPL')."
     )
 
 
@@ -193,18 +192,18 @@ def load_prices(
     data_dir: Path | str | None = None,
     min_rows: int = MIN_HISTORY_ROWS,
 ) -> pd.DataFrame:
-    """Önce yfinance üzerinden fiyat verisini indirir; hata veya rate-limit durumunda yedek veriyi yükler.
+    """Downloads prices with yfinance first; on an error or a rate limit it loads the snapshot instead.
 
     Args:
-        ticker: Borsa sembolü (örn. 'THYAO.IS', 'ASELS.IS', 'XU100.IS', 'BTC-USD', 'AAPL').
-        start: Başlangıç tarihi ('YYYY-MM-DD').
-        end: Bitiş tarihi ('YYYY-MM-DD').
-        force_fallback: True ise doğrudan yedek (snapshot) veriyi kullanır.
-        data_dir: Yedek CSV dosyalarının aranacağı özel klasör.
-        min_rows: Kabul edilebilir en az işlem günü sayısı.
+        ticker: Ticker symbol (e.g. 'THYAO.IS', 'ASELS.IS', 'XU100.IS', 'BTC-USD', 'AAPL').
+        start: Start date ('YYYY-MM-DD').
+        end: End date ('YYYY-MM-DD').
+        force_fallback: If True, use the snapshot directly.
+        data_dir: A custom folder to search for snapshot CSV files.
+        min_rows: The minimum number of trading days accepted.
     """
     if not ticker or not isinstance(ticker, str) or not ticker.strip():
-        raise ValueError("Geçersiz sembol (ticker): Lütfen boş olmayan bir sembol adı girin.")
+        raise ValueError("Invalid ticker: please enter a non-empty ticker symbol.")
     clean_ticker = ticker.strip().upper()
 
     use_fallback = force_fallback or (os.environ.get("WORKSHOP_FORCE_FALLBACK", "0") == "1")
@@ -227,35 +226,35 @@ def load_prices(
             if hasattr(yf, "shared") and hasattr(yf.shared, "_ERRORS"):
                 yf_err = yf.shared._ERRORS.get(clean_ticker, "")
             if yf_err:
-                raise RuntimeError(f"yfinance hatası: {yf_err}")
+                raise RuntimeError(f"yfinance error: {yf_err}")
             if raw is None or raw.empty:
-                raise RuntimeError("Yahoo Finance boş tablo döndürdü")
+                raise RuntimeError("Yahoo Finance returned an empty table")
             df = _normalize_ohlcv_df(raw, start, end)
             if df.empty:
-                raise RuntimeError("Seçilen tarih aralığında veri bulunamadı")
+                raise RuntimeError("No data in the selected date range")
         except Exception as exc:  # noqa: BLE001
             print(
-                f"⚠️ Yahoo Finance'ten {clean_ticker} verisi alınamadı ({type(exc).__name__}: {exc}). "
-                "Yedek veri (snapshot) yükleniyor..."
+                f"⚠️ Could not get {clean_ticker} from Yahoo Finance ({type(exc).__name__}: {exc}). "
+                "Loading the snapshot data..."
             )
             df = _load_snapshot_fallback(clean_ticker, start, end, data_dir=data_dir)
     else:
-        print(f"ℹ️ {clean_ticker} için yedek veri (snapshot) kullanılıyor.")
+        print(f"ℹ️ Using the snapshot data for {clean_ticker}.")
         df = _load_snapshot_fallback(clean_ticker, start, end, data_dir=data_dir)
 
     if len(df) < min_rows:
         raise ValueError(
-            f"'{clean_ticker}' sembolü için yeterli geçmiş veri yok: {len(df)} gün bulundu, "
-            f"en az {min_rows} işlem günü gerekiyor. Lütfen daha uzun geçmişe sahip bir sembol seçin."
+            f"Not enough history for '{clean_ticker}': found {len(df)} days, "
+            f"need at least {min_rows} trading days. Please pick a ticker with a longer history."
         )
     return df
 
 
-# --- Bölüm 2: Temizlik, Özellikler ve Kronolojik Bölme -----------------------------------
+# --- Part 2: cleaning, features and the chronological split ------------------------------
 
 
 def compute_rsi(series: pd.Series, period: int = 14) -> pd.Series:
-    """Kapanış fiyatları üzerinden Göreceli Güç Endeksi (RSI, 0-100) hesaplar."""
+    """Computes the Relative Strength Index (RSI, 0-100) from close prices."""
     delta = series.diff()
     gain = delta.clip(lower=0.0)
     loss = -delta.clip(upper=0.0)
@@ -266,19 +265,19 @@ def compute_rsi(series: pd.Series, period: int = 14) -> pd.Series:
 
 
 def build_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Eksik değerleri temizler ve log getiri, hareketli ortalama, volatilite, RSI özelliklerini üretir."""
+    """Cleans missing values and builds the log return, moving average, volatility and RSI features."""
     out = df[REQUIRED_OHLCV_COLS].copy()
-    # Tatil veya eksik günleri yalnızca geçmiş değerle doldur (gelecekten bilgi sızdırma!)
+    # Fill holidays or missing days with past values only (never leak information from the future!)
     out = out.ffill().dropna()
 
-    # Fiyat yerine logaritmik getiri: r_t = ln(Close_t / Close_{t-1})
+    # Log return instead of price: r_t = ln(Close_t / Close_{t-1})
     out["log_return"] = np.log(out["Close"] / out["Close"].shift(1))
     out["roll_mean_5"] = out["log_return"].rolling(window=5).mean()
     out["roll_std_10"] = out["log_return"].rolling(window=10).std()
     out["rsi_14"] = compute_rsi(out["Close"], period=14) / 100.0
     out["volume_change"] = np.log((out["Volume"] + 1.0) / (out["Volume"].shift(1) + 1.0)).clip(-3.0, 3.0)
 
-    # O günün yönü: 1.0 (artış), 0.0 (düşüş veya sabit)
+    # The day's direction: 1.0 (up), 0.0 (down or flat)
     out["up_day"] = (out["log_return"] > 0.0).astype(np.float32)
 
     return out.dropna().copy()
@@ -289,9 +288,9 @@ def chronological_split(
     train_ratio: float = 0.70,
     val_ratio: float = 0.15,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """Veriyi zaman sırasını bozmadan (kronolojik) eğitim, doğrulama ve test olarak üçe böler."""
+    """Splits the data into train, validation and test without breaking time order (chronologically)."""
     if not (0.0 < train_ratio < 1.0) or not (0.0 < val_ratio < 1.0) or (train_ratio + val_ratio >= 1.0):
-        raise ValueError("train_ratio ve val_ratio toplamı (0, 1) aralığında olmalıdır.")
+        raise ValueError("train_ratio and val_ratio must each be in (0, 1) and sum to less than 1.")
     n = len(df)
     train_end = int(n * train_ratio)
     val_end = int(n * (train_ratio + val_ratio))
@@ -307,7 +306,7 @@ def fit_scaler_on_train(
     test_df: pd.DataFrame,
     feature_cols: list[str] | None = None,
 ) -> tuple[StandardScaler, np.ndarray, np.ndarray, np.ndarray]:
-    """StandardScaler'ı YALNIZCA eğitim (train) verisi üzerinde fit eder (veri sızıntısını önler)."""
+    """Fits the StandardScaler on the training data ONLY (prevents data leakage)."""
     cols = feature_cols or FEATURE_COLS
     scaler = StandardScaler()
     x_train = scaler.fit_transform(train_df[cols].values.astype(np.float32)).astype(np.float32)
@@ -316,23 +315,23 @@ def fit_scaler_on_train(
     return scaler, x_train, x_val, x_test
 
 
-# --- Bölüm 3, 4 ve 5: PyTorch Dataset ve Modeller ----------------------------------------
+# --- Parts 3, 4 and 5: PyTorch datasets and models ---------------------------------------
 
 
 class SlidingWindowDataset(Dataset):
-    """Özellik ve hedef dizileri üzerinde kayan pencere (sliding window) oluşturan PyTorch Dataset.
+    """PyTorch Dataset that builds sliding windows over feature and target arrays.
 
-    Pencere i:
-      - Giriş (x): features[i : i + window_size]  (t - W ... t - 1 günleri)
-      - Hedef (y): targets[i + window_size]       (t günü — pencerenin hemen ertesi günü)
-    Böylece hedef gün (i + window_size) hiçbir zaman giriş penceresinin içinde yer almaz.
+    Window i:
+      - Input (x): features[i : i + window_size]  (days t - W ... t - 1)
+      - Target (y): targets[i + window_size]       (day t, the day right after the window)
+    So the target day (i + window_size) is never inside the input window.
     """
 
     def __init__(self, features: np.ndarray, targets: np.ndarray, window_size: int = 30) -> None:
         if len(features) != len(targets):
-            raise ValueError("features ve targets uzunlukları eşit olmalıdır.")
+            raise ValueError("features and targets must have the same length.")
         if len(features) <= window_size:
-            raise ValueError(f"Veri uzunluğu ({len(features)}) pencere boyutundan ({window_size}) büyük olmalıdır.")
+            raise ValueError(f"The data length ({len(features)}) must be greater than the window size ({window_size}).")
         self.features = np.asarray(features, dtype=np.float32)
         if self.features.ndim == 1:
             self.features = self.features[:, None]
@@ -349,18 +348,18 @@ class SlidingWindowDataset(Dataset):
 
 
 class PriceWindowDataset(Dataset):
-    """Bölüm 4 fiyat tahmini için pencere-içi normalize edilmiş fiyat veri kümesi.
+    """Dataset of window-normalised prices for the Part 4 price prediction.
 
-    Not: THYAO gibi yıllar içinde 5 TL'den 340 TL'ye çıkan hisselerde, tüm eğitim setine
-    fit edilmiş tek bir global scaler kullanılırsa test fiyatları (z > 10) LSTM'in tanh/sigmoid
-    kapılarını doyuma (saturation) uğratır. Hikâyeyi bulandırmamak için her 30 günlük pencere
-    yalnızca kendi ilk gününe (w[0]) göre bağıl değişim (w / w[0] - 1) olarak ifade edilir.
-    Hedef ise pencereden sonraki günün (idx + window_size) aynı tabana göre bağıl fiyatıdır.
+    Note: for a stock like THYAO, which went from 5 TL to 340 TL over the years, a single global
+    scaler fitted on the whole training set puts test prices at z > 10, which saturates the LSTM's
+    tanh/sigmoid gates. To keep the story clean, each 30-day window is expressed only relative to
+    its own first day (w / w[0] - 1). The target is the price of the day after the window
+    (idx + window_size), relative to the same base.
     """
 
     def __init__(self, prices: np.ndarray, window_size: int = 30) -> None:
         if len(prices) <= window_size:
-            raise ValueError("Fiyat dizisi pencere boyutundan uzun olmalıdır.")
+            raise ValueError("The price array must be longer than the window size.")
         self.prices = np.asarray(prices, dtype=np.float32).reshape(-1)
         self.window_size = int(window_size)
 
@@ -383,7 +382,7 @@ class PriceWindowDataset(Dataset):
 
 
 class LSTMModel(nn.Module):
-    """Hem regresyon (Bölüm 3-4) hem de ikili sınıflandırma logit üretimi (Bölüm 5) için LSTM modeli."""
+    """LSTM model for regression (Parts 3-4) and for binary classification logits (Part 5)."""
 
     def __init__(self, input_dim: int = 1, hidden_dim: int = 32, num_layers: int = 1) -> None:
         super().__init__()
@@ -391,15 +390,15 @@ class LSTMModel(nn.Module):
         self.fc = nn.Linear(hidden_dim, 1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x boyutu: (batch, seq_len, features)
+        # x shape: (batch, seq_len, features)
         out, _ = self.lstm(x)
-        # Yalnızca son zaman adımının gizli durumunu (hidden state) al: (batch, hidden_dim)
+        # Take only the hidden state of the last time step: (batch, hidden_dim)
         last_hidden = out[:, -1, :]
         return self.fc(last_hidden).squeeze(-1)
 
 
 class GRUModel(nn.Module):
-    """Bölüm 6 meydan okuması için GRU tabanlı alternatif model."""
+    """GRU-based alternative model for the Part 6 challenge."""
 
     def __init__(self, input_dim: int = 4, hidden_dim: int = 32, num_layers: int = 1) -> None:
         super().__init__()
@@ -412,7 +411,7 @@ class GRUModel(nn.Module):
 
 
 class TinyTransformerModel(nn.Module):
-    """Bölüm 6 bonus meydan okuması için küçük Transformer Encoder modeli."""
+    """Small Transformer encoder model for the Part 6 bonus challenge."""
 
     def __init__(self, input_dim: int = 4, d_model: int = 16, nhead: int = 2, max_len: int = 128) -> None:
         super().__init__()
@@ -435,7 +434,7 @@ class TinyTransformerModel(nn.Module):
         return self.fc(h[:, -1, :]).squeeze(-1)
 
 
-# --- Eğitim ve Değerlendirme Yardımcıları ------------------------------------------------
+# --- Training and evaluation helpers -----------------------------------------------------
 
 
 def train_price_lstm(
@@ -450,7 +449,7 @@ def train_price_lstm(
     lr: float = 0.003,
     seed: int = 42,
 ) -> dict[str, Any]:
-    """Bölüm 4 fiyat tahmin modelini eğitir ve saf (naive) referans modelle karşılaştırır."""
+    """Trains the Part 4 price model and compares it with the naive baseline."""
     set_seed(seed)
     train_ds = PriceWindowDataset(train_prices, window_size=window_size)
     val_ds = PriceWindowDataset(val_prices, window_size=window_size)
@@ -541,7 +540,7 @@ def train_direction_classifier(
     seed: int = 42,
     model_cls: type[nn.Module] = LSTMModel,
 ) -> dict[str, Any]:
-    """Bölüm 5 getiri tabanlı yön (yukarı/aşağı) sınıflandırma modelini eğitir ve değerlendirir."""
+    """Trains and evaluates the Part 5 return-based direction (up/down) classifier."""
     set_seed(seed)
     train_ds = SlidingWindowDataset(x_train, y_train, window_size=window_size)
     val_ds = SlidingWindowDataset(x_val, y_val, window_size=window_size)
@@ -591,7 +590,7 @@ def train_direction_classifier(
     preds_arr = (probs_arr >= 0.5).astype(np.float32)
     targets_arr = np.concatenate(all_targets)
 
-    # Çoğunluk sınıfı (majority-class) referans modeli (yalnızca eğitim setinden hesaplanır)
+    # Majority-class baseline (computed from the training set only)
     train_targets = y_train[window_size:]
     majority_class = 1.0 if float(np.mean(train_targets)) >= 0.5 else 0.0
     majority_preds = np.full_like(targets_arr, majority_class)
@@ -625,7 +624,7 @@ def walk_forward_evaluation(
     epochs: int = 10,
     seed: int = 42,
 ) -> list[dict[str, Any]]:
-    """Genişleyen pencere (walk-forward) ile birden fazla zaman diliminde dürüst doğrulama yapar."""
+    """Honest validation over several time periods with an expanding (walk-forward) window."""
     cols = feature_cols or FEATURE_COLS
     n = len(feat_df)
     initial_train = int(n * 0.50)
@@ -676,14 +675,14 @@ def backtest_with_costs(
     signals: np.ndarray,
     cost_bps: float = 15.0,
 ) -> dict[str, Any]:
-    """Bölüm 6 bonusu: İşlem maliyetli (komisyon + makas) basit uzun/nakit (long/flat) strateji testi."""
+    """Part 6 bonus: a simple long/flat strategy test with trading costs (commission + spread)."""
     rets = np.asarray(test_returns, dtype=np.float64).reshape(-1)
     sigs = np.asarray(signals, dtype=np.float64).reshape(-1)
     min_len = min(len(rets), len(sigs))
     rets = rets[:min_len]
     sigs = sigs[:min_len]
 
-    # Pozisyon değişimlerinde (alım veya satım) işlem maliyeti düşülür
+    # A trading cost is charged on every position change (buy or sell)
     trades = np.abs(np.diff(sigs, prepend=0.0))
     cost_rate = cost_bps / 10000.0
     gross_strat_rets = sigs * rets
@@ -704,21 +703,21 @@ def backtest_with_costs(
     }
 
 
-# --- Görselleştirme Yardımcıları (yalnızca matplotlib) -----------------------------------
+# --- Plotting helpers (matplotlib only) --------------------------------------------------
 
 
 def plot_ohlcv(df: pd.DataFrame, ticker: str = "THYAO.IS") -> plt.Figure:
-    """Bölüm 1: Kapanış fiyatı ve işlem hacmini alt alta iki grafikte çizer."""
+    """Part 1: plots the close price and the trading volume in two charts, one above the other."""
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 5.5), sharex=True, gridspec_kw={"height_ratios": [3, 1]})
-    ax1.plot(df.index, df["Close"], color="#1f77b4", linewidth=1.4, label="Düzeltilmiş Kapanış (Close)")
-    ax1.set_title(f"{ticker} — Günlük Kapanış Fiyatı ve İşlem Hacmi")
-    ax1.set_ylabel("Fiyat")
+    ax1.plot(df.index, df["Close"], color="#1f77b4", linewidth=1.4, label="Adjusted close")
+    ax1.set_title(f"{ticker} — Daily Close Price and Volume")
+    ax1.set_ylabel("Price")
     ax1.grid(True, alpha=0.3)
     ax1.legend(loc="upper left")
 
-    ax2.bar(df.index, df["Volume"], color="#7f7f7f", width=2.0, alpha=0.6, label="Hacim (Volume)")
-    ax2.set_ylabel("Hacim")
-    ax2.set_xlabel("Tarih")
+    ax2.bar(df.index, df["Volume"], color="#7f7f7f", width=2.0, alpha=0.6, label="Volume")
+    ax2.set_ylabel("Volume")
+    ax2.set_xlabel("Date")
     ax2.grid(True, alpha=0.3)
     fig.tight_layout()
     return fig
@@ -730,16 +729,16 @@ def plot_chronological_split(
     test_df: pd.DataFrame,
     ticker: str = "THYAO.IS",
 ) -> plt.Figure:
-    """Bölüm 2: Kronolojik eğitim (%70), doğrulama (%15) ve test (%15) bölgelerini gösterir."""
+    """Part 2: shows the chronological train (70%), validation (15%) and test (15%) regions."""
     fig, ax = plt.subplots(figsize=(10, 4.2))
-    ax.plot(train_df.index, train_df["Close"], label="Eğitim (Train - %70)", color="#1f77b4", linewidth=1.4)
-    ax.plot(val_df.index, val_df["Close"], label="Doğrulama (Val - %15)", color="#ff7f0e", linewidth=1.4)
-    ax.plot(test_df.index, test_df["Close"], label="Test (%15)", color="#2ca02c", linewidth=1.4)
+    ax.plot(train_df.index, train_df["Close"], label="Train (70%)", color="#1f77b4", linewidth=1.4)
+    ax.plot(val_df.index, val_df["Close"], label="Validation (15%)", color="#ff7f0e", linewidth=1.4)
+    ax.plot(test_df.index, test_df["Close"], label="Test (15%)", color="#2ca02c", linewidth=1.4)
     ax.axvline(val_df.index[0], color="#444444", linestyle="--", alpha=0.7)
     ax.axvline(test_df.index[0], color="#444444", linestyle="--", alpha=0.7)
-    ax.set_title(f"{ticker} — Kronolojik Veri Bölme (Gelecekten Geçmişe Sızıntı Yok)")
-    ax.set_xlabel("Tarih")
-    ax.set_ylabel("Kapanış Fiyatı")
+    ax.set_title(f"{ticker} — Chronological Split (No Leakage from the Future)")
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Close price")
     ax.legend(loc="upper left")
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
@@ -749,13 +748,13 @@ def plot_chronological_split(
 def plot_training_curves(
     train_losses: list[float],
     val_losses: list[float],
-    title: str = "Eğitim ve Doğrulama Kaybı (Loss)",
+    title: str = "Training and Validation Loss",
 ) -> plt.Figure:
-    """Eğitim ve doğrulama kayıp eğrilerini çizer."""
+    """Plots the training and validation loss curves."""
     epochs = range(1, len(train_losses) + 1)
     fig, ax = plt.subplots(figsize=(7.5, 3.8))
-    ax.plot(epochs, train_losses, marker="o", label="Eğitim Kaybı (Train Loss)", color="#1f77b4")
-    ax.plot(epochs, val_losses, marker="s", label="Doğrulama Kaybı (Val Loss)", color="#d62728")
+    ax.plot(epochs, train_losses, marker="o", label="Train loss", color="#1f77b4")
+    ax.plot(epochs, val_losses, marker="s", label="Validation loss", color="#d62728")
     ax.set_title(title)
     ax.set_xlabel("Epoch")
     ax.set_ylabel("Loss")
@@ -771,13 +770,13 @@ def plot_price_deception(
     predicted: np.ndarray,
     ticker: str = "THYAO.IS",
 ) -> plt.Figure:
-    """Bölüm 0 (Hook) ve Bölüm 4: Uzaktan 'kusursuz' görünen fiyat tahmini grafiği."""
+    """Part 0 (hook) and Part 4: the price prediction chart that looks 'perfect' from afar."""
     fig, ax = plt.subplots(figsize=(10, 4.2))
-    ax.plot(dates, actual, label="Gerçek Fiyat (Actual)", color="#1f77b4", linewidth=1.6)
-    ax.plot(dates, predicted, label="LSTM Tahmini (Predicted)", color="#d62728", linestyle="--", linewidth=1.5)
-    ax.set_title(f"{ticker} Test Seti — Gerçek Fiyat vs. LSTM Tahmini ('Kusursuz' Görünüm)")
-    ax.set_xlabel("Tarih")
-    ax.set_ylabel("Fiyat")
+    ax.plot(dates, actual, label="Actual price", color="#1f77b4", linewidth=1.6)
+    ax.plot(dates, predicted, label="LSTM prediction", color="#d62728", linestyle="--", linewidth=1.5)
+    ax.set_title(f"{ticker} Test Set — Actual Price vs. LSTM Prediction (the 'Perfect' Look)")
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Price")
     ax.legend(loc="upper left")
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
@@ -792,7 +791,7 @@ def plot_zoom_and_lag(
     ticker: str = "THYAO.IS",
     zoom_days: int = 35,
 ) -> plt.Figure:
-    """Bölüm 4 Sürprizi: Son birkaç haftaya yakınlaştırma (1 günlük kayma) ve gecikme korelasyonu."""
+    """Part 4 surprise: zoom into the last few weeks (a one-day shift) and the lag correlation."""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11.5, 4.3), gridspec_kw={"width_ratios": [1.6, 1.0]})
 
     z_dates = dates[-zoom_days:]
@@ -800,13 +799,13 @@ def plot_zoom_and_lag(
     z_pred = predicted[-zoom_days:]
     z_naive = naive[-zoom_days:]
 
-    ax1.plot(z_dates, z_act, marker="o", markersize=4, label="Gerçek Fiyat (P_t)", color="#1f77b4", linewidth=1.6)
+    ax1.plot(z_dates, z_act, marker="o", markersize=4, label="Actual price (P_t)", color="#1f77b4", linewidth=1.6)
     ax1.plot(
         z_dates,
         z_pred,
         marker="x",
         markersize=4,
-        label="LSTM Tahmini",
+        label="LSTM prediction",
         color="#d62728",
         linestyle="--",
         linewidth=1.5,
@@ -816,19 +815,19 @@ def plot_zoom_and_lag(
         z_naive,
         marker=".",
         markersize=4,
-        label="Saf Referans (Yarın = Bugün)",
+        label="Naive baseline (tomorrow = today)",
         color="#2ca02c",
         linestyle=":",
         linewidth=1.5,
     )
-    ax1.set_title(f"{ticker} — Son {zoom_days} Güne Yakınlaştırma (1 Günlük Gecikme!)")
-    ax1.set_xlabel("Tarih")
-    ax1.set_ylabel("Fiyat")
+    ax1.set_title(f"{ticker} — Zoom on the Last {zoom_days} Days (a One-Day Lag!)")
+    ax1.set_xlabel("Date")
+    ax1.set_ylabel("Price")
     ax1.tick_params(axis="x", rotation=30)
     ax1.legend(loc="best", fontsize=8.5)
     ax1.grid(True, alpha=0.3)
 
-    # Gecikme korelasyonu çubuk grafiği: Lag 0 (bugün) vs Lag 1 (dün)
+    # Lag correlation bar chart: Lag 0 (today) vs Lag 1 (yesterday)
     lags = [-2, -1, 0, 1, 2]
     corrs = []
     for lag in lags:
@@ -844,8 +843,8 @@ def plot_zoom_and_lag(
     colors = ["#7f7f7f" if l != 1 else "#d62728" for l in lags]
     ax2.bar([f"Lag {l}" for l in lags], corrs, color=colors, alpha=0.85)
     ax2.set_ylim(min(0.85, min(corrs) - 0.02), 1.005)
-    ax2.set_title("Tahmin ile Gerçek Seri Korelasyonu\n(Lag 1 = Dünün Fiyatıyla Korelasyon Zirvede!)")
-    ax2.set_ylabel("Pearson Korelasyonu (r)")
+    ax2.set_title("Correlation of Prediction and Actual Price\n(Peaks at Lag 1 = Yesterday's Price!)")
+    ax2.set_ylabel("Pearson correlation (r)")
     ax2.grid(True, axis="y", alpha=0.3)
 
     fig.tight_layout()
@@ -857,13 +856,13 @@ def plot_direction_results(
     wf_results: list[dict[str, Any]],
     ticker: str = "THYAO.IS",
 ) -> plt.Figure:
-    """Bölüm 5: Karmaşıklık matrisi (Confusion Matrix) ve Walk-Forward doğruluk grafiği."""
+    """Part 5: the confusion matrix and the walk-forward accuracy chart."""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.2))
 
     im = ax1.imshow(cm, cmap="Blues")
-    ax1.set_xticks([0, 1], labels=["Tahmin: Düşüş (0)", "Tahmin: Yükseliş (1)"])
-    ax1.set_yticks([0, 1], labels=["Gerçek: Düşüş (0)", "Gerçek: Yükseliş (1)"])
-    ax1.set_title(f"{ticker} — Karmaşıklık Matrisi (Test)")
+    ax1.set_xticks([0, 1], labels=["Predicted: down (0)", "Predicted: up (1)"])
+    ax1.set_yticks([0, 1], labels=["Actual: down (0)", "Actual: up (1)"])
+    ax1.set_title(f"{ticker} — Confusion Matrix (Test)")
     for i in range(2):
         for j in range(2):
             ax1.text(j, i, str(cm[i, j]), ha="center", va="center", color="black", fontweight="bold")
@@ -874,13 +873,13 @@ def plot_direction_results(
     maj_accs = [r["majority_acc"] for r in wf_results]
     x = np.arange(len(folds))
     width = 0.35
-    ax2.bar(x - width / 2, accs, width, label="LSTM Doğruluk (Accuracy)", color="#1f77b4")
-    ax2.bar(x + width / 2, maj_accs, width, label="Çoğunluk Sınıfı Referansı", color="#ff7f0e")
-    ax2.axhline(0.50, color="#d62728", linestyle="--", linewidth=1.2, label="%50 Rastgele Sınırı")
+    ax2.bar(x - width / 2, accs, width, label="LSTM accuracy", color="#1f77b4")
+    ax2.bar(x + width / 2, maj_accs, width, label="Majority-class baseline", color="#ff7f0e")
+    ax2.axhline(0.50, color="#d62728", linestyle="--", linewidth=1.2, label="50% chance level")
     ax2.set_xticks(x, labels=folds)
     ax2.set_ylim(0.35, 0.70)
-    ax2.set_ylabel("Doğruluk (Accuracy)")
-    ax2.set_title(f"{ticker} — Walk-Forward Doğrulama Sonuçları")
+    ax2.set_ylabel("Accuracy")
+    ax2.set_title(f"{ticker} — Walk-Forward Validation Results")
     ax2.legend(loc="upper right", fontsize=8.5)
     ax2.grid(True, axis="y", alpha=0.3)
 
@@ -888,20 +887,20 @@ def plot_direction_results(
     return fig
 
 
-# --- 'Yetiştir' (Catch-up) Fonksiyonları -------------------------------------------------
+# --- 'Catch up' functions ----------------------------------------------------------------
 
 
-def yetistir_bolum_1(ticker: str = "THYAO.IS") -> dict[str, Any]:
-    """Bölüm 1 başlangıcı için ham OHLCV verisini indirir/yükler ve döndürür."""
+def catch_up_part_1(ticker: str = "THYAO.IS") -> dict[str, Any]:
+    """For the start of Part 1: downloads/loads the raw OHLCV data and returns it."""
     set_seed(42)
     raw_df = load_prices(ticker)
-    print(f"✅ Bölüm 1 hazır: {ticker} için {len(raw_df)} günlük OHLCV verisi yüklendi.")
+    print(f"✅ Part 1 ready: loaded {len(raw_df)} days of OHLCV data for {ticker}.")
     return {"ticker": ticker, "raw_df": raw_df}
 
 
-def yetistir_bolum_2(ticker: str = "THYAO.IS") -> dict[str, Any]:
-    """Bölüm 2 sonu / Bölüm 3 başı için temizlenmiş özellikleri, bölünmüş veriyi ve scaler'ı hazırlar."""
-    state = yetistir_bolum_1(ticker)
+def catch_up_part_2(ticker: str = "THYAO.IS") -> dict[str, Any]:
+    """For the end of Part 2 / start of Part 3: prepares the cleaned features, the split and the scaler."""
+    state = catch_up_part_1(ticker)
     feat_df = build_features(state["raw_df"])
     train_df, val_df, test_df = chronological_split(feat_df)
     scaler, x_train, x_val, x_test = fit_scaler_on_train(train_df, val_df, test_df, FEATURE_COLS)
@@ -919,20 +918,20 @@ def yetistir_bolum_2(ticker: str = "THYAO.IS") -> dict[str, Any]:
         }
     )
     print(
-        f"✅ Bölüm 2 hazır: train={len(train_df)}, val={len(val_df)}, test={len(test_df)} satır "
-        f"ve {len(FEATURE_COLS)} özellik ölçeklendi."
+        f"✅ Part 2 ready: train={len(train_df)}, val={len(val_df)}, test={len(test_df)} rows "
+        f"and {len(FEATURE_COLS)} features scaled."
     )
     return state
 
 
-def yetistir_bolum_3(
+def catch_up_part_3(
     ticker: str = "THYAO.IS",
     window_size: int = 30,
     batch_size: int = 64,
     seed: int = 42,
 ) -> dict[str, Any]:
-    """Bölüm 3 sonu / Bölüm 4 başı için PyTorch Dataset, DataLoader ve temel LSTM nesnelerini hazırlar."""
-    state = yetistir_bolum_2(ticker)
+    """For the end of Part 3 / start of Part 4: prepares the PyTorch Dataset, DataLoader and base LSTM objects."""
+    state = catch_up_part_2(ticker)
     set_seed(seed)
     y_train = state["train_df"]["log_return"].values.astype(np.float32)
     y_val = state["val_df"]["log_return"].values.astype(np.float32)
@@ -958,18 +957,18 @@ def yetistir_bolum_3(
             "demo_model": model,
         }
     )
-    print(f"✅ Bölüm 3 hazır: Pencere boyutu={window_size}, eğitim örnek sayısı={len(train_ds)}.")
+    print(f"✅ Part 3 ready: window size={window_size}, training samples={len(train_ds)}.")
     return state
 
 
-def yetistir_bolum_4(
+def catch_up_part_4(
     ticker: str = "THYAO.IS",
     window_size: int = 30,
     epochs: int = 15,
     seed: int = 42,
 ) -> dict[str, Any]:
-    """Bölüm 4 fiyat tahmini modelini ve saf referans (naive baseline) karşılaştırmasını hazırlar."""
-    state = yetistir_bolum_2(ticker)
+    """Prepares the Part 4 price model and the naive-baseline comparison."""
+    state = catch_up_part_2(ticker)
     price_res = train_price_lstm(
         state["train_df"]["Close"].values,
         state["val_df"]["Close"].values,
@@ -981,20 +980,20 @@ def yetistir_bolum_4(
     test_dates = state["test_df"].index[window_size:]
     state.update({"price_res": price_res, "test_dates": test_dates, "window_size": window_size})
     print(
-        f"✅ Bölüm 4 hazır: LSTM MAE={price_res['lstm_mae']:.2f} TL | "
-        f"Saf Referans (Yarın=Bugün) MAE={price_res['naive_mae']:.2f} TL."
+        f"✅ Part 4 ready: LSTM MAE={price_res['lstm_mae']:.2f} TL | "
+        f"naive baseline (tomorrow = today) MAE={price_res['naive_mae']:.2f} TL."
     )
     return state
 
 
-def yetistir_bolum_5(
+def catch_up_part_5(
     ticker: str = "THYAO.IS",
     window_size: int = 30,
     epochs: int = 15,
     seed: int = 42,
 ) -> dict[str, Any]:
-    """Bölüm 5 yön sınıflandırma modelini ve walk-forward değerlendirmesini hazırlar."""
-    state = yetistir_bolum_2(ticker)
+    """Prepares the Part 5 direction classifier and the walk-forward evaluation."""
+    state = catch_up_part_2(ticker)
     y_train = state["train_df"]["up_day"].values.astype(np.float32)
     y_val = state["val_df"]["up_day"].values.astype(np.float32)
     y_test = state["test_df"]["up_day"].values.astype(np.float32)
@@ -1020,19 +1019,28 @@ def yetistir_bolum_5(
     )
     state.update({"cls_res": cls_res, "wf_res": wf_res, "window_size": window_size})
     print(
-        f"✅ Bölüm 5 hazır: Test Doğruluk (Accuracy)={cls_res['test_acc']:.3f} | "
-        f"Dengeli Doğruluk={cls_res['test_bal_acc']:.3f} | "
-        f"Çoğunluk Sınıfı={cls_res['majority_acc']:.3f}."
+        f"✅ Part 5 ready: test accuracy={cls_res['test_acc']:.3f} | "
+        f"balanced accuracy={cls_res['test_bal_acc']:.3f} | "
+        f"majority class={cls_res['majority_acc']:.3f}."
     )
     return state
 
 
-def yetistir_bolum_6(
+def catch_up_part_6(
     ticker: str = "THYAO.IS",
     window_size: int = 30,
     seed: int = 42,
 ) -> dict[str, Any]:
-    """Bölüm 6 meydan okumaları için tüm veri kümesi ve sınıflandırma sonuçlarını hazırlar."""
-    state = yetistir_bolum_5(ticker=ticker, window_size=window_size, epochs=15, seed=seed)
-    print("✅ Bölüm 6 (Meydan Okumalar) için tüm değişkenler hazır!")
+    """Prepares the full dataset and the classification results for the Part 6 challenges."""
+    state = catch_up_part_5(ticker=ticker, window_size=window_size, epochs=15, seed=seed)
+    print("✅ Part 6 (challenges): every variable is ready!")
     return state
+
+
+# Earlier (Turkish) names, kept so notebooks opened before the rename still run.
+yetistir_bolum_1 = catch_up_part_1
+yetistir_bolum_2 = catch_up_part_2
+yetistir_bolum_3 = catch_up_part_3
+yetistir_bolum_4 = catch_up_part_4
+yetistir_bolum_5 = catch_up_part_5
+yetistir_bolum_6 = catch_up_part_6

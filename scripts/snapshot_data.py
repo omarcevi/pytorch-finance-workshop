@@ -1,8 +1,8 @@
-"""Varsayılan 5 sembol için yedek (snapshot) verileri günceller.
+"""Refreshes the snapshot data for the 5 default tickers.
 
-Kullanım:
-    python3 scripts/snapshot_data.py                # Yahoo Finance'ten indirir (ağ varsa)
-    python3 scripts/snapshot_data.py --offline      # Çevrimdışı kalibre edilmiş yedekleri yazar
+Usage:
+    python3 scripts/snapshot_data.py                # downloads from Yahoo Finance (if there is a network)
+    python3 scripts/snapshot_data.py --offline      # writes the calibrated offline series without a network
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from workshop_utils import (
 
 
 def refresh_snapshots(out_dir: Path, *, offline_only: bool = False) -> None:
-    """Varsayılan sembollerin günlük OHLCV verilerini data/ klasörüne CSV olarak kaydeder."""
+    """Saves the daily OHLCV data of the default tickers as CSV files in the data/ folder."""
     out_dir.mkdir(parents=True, exist_ok=True)
     for ticker in DEFAULT_TICKERS:
         if offline_only:
@@ -35,21 +35,21 @@ def refresh_snapshots(out_dir: Path, *, offline_only: bool = False) -> None:
             source = "yfinance/fallback"
         target = out_dir / f"{ticker}.csv"
         df.to_csv(target)
-        print(f"Kaydedildi: {target} ({len(df)} satır, kaynak={source})")
+        print(f"Saved: {target} ({len(df)} rows, source={source})")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Yedek (snapshot) fiyat verilerini yeniler.")
+    parser = argparse.ArgumentParser(description="Refreshes the snapshot price data.")
     parser.add_argument(
         "--out-dir",
         type=Path,
         default=ROOT / "data",
-        help="CSV dosyalarının kaydedileceği klasör (varsayılan: data/).",
+        help="Folder for the CSV files (default: data/).",
     )
     parser.add_argument(
         "--offline",
         action="store_true",
-        help="Ağ kullanmadan kalibre edilmiş çevrimdışı yedek dosyaları üretir.",
+        help="Writes the calibrated offline series without using the network.",
     )
     args = parser.parse_args()
     refresh_snapshots(args.out_dir, offline_only=args.offline)

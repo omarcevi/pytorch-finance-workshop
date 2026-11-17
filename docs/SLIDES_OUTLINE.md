@@ -1,98 +1,99 @@
-# Sunum Taslağı (`SLIDES_OUTLINE.md`)
+# Slide Outline (`SLIDES_OUTLINE.md`)
 
-**Etkinlik:** Finansal Verilerle Yapay Zekâyı Buluşturmak (PyTorch Atölyesi)  
-**Topluluk:** Işık IEEE Computer Society · Işık Üniversitesi Şile Kampüsü (DMF-214)  
-**Tarih / Saat:** 18 Kasım 2026 Çarşamba, 16:30–18:45  
+**Event:** Bringing AI to Financial Data (PyTorch Workshop)  
+**Community:** Işık IEEE Computer Society · Işık University Şile Campus (DMF-214)  
+**Date / time:** Wednesday 18 November 2026, 16:30–18:45  
 
-Bu taslak, uygulamalı Colab çalışmasının başındaki 10 dakikalık açılış (Slayt 1–5) ve sonundaki 5 dakikalık kapanış (Slayt 6–9) için hazırlanmış **9 slaytlık** sunum planıdır.
-
----
-
-## Slayt 1 · Kapak ve Hızlı Başlangıç (Açılış — 16:30)
-- **Başlık:** Finansal Verilerle Yapay Zekâyı Buluşturmak: PyTorch ile Zaman Serileri
-- **Alt Başlık:** Işık IEEE Computer Society Uygulamalı Atölyesi · Omar Elcircevi
-- **Maddeler:**
-  - 💻 **Başlangıç Defteri (Colab):** `https://colab.research.google.com/github/omarcevi/pytorch-finance-workshop/blob/main/notebooks/workshop_starter.ipynb` *(Slaytta büyük QR kod + kısa link: `omarcevi.dev/w/pytorch-finans`)*
-  - 📘 **Adım Adım Türkçe Rehber:** `https://omarcevi.dev/workshops/pytorch-finance-workshop/`
-  - ⚠️ **Not:** Eğitim amaçlıdır; yatırım tavsiyesi değildir.
-- **Görsel:** Colab rozeti ve başlangıç defterine giden büyük QR kod.
+This outline is a **9-slide** plan for the 10-minute opening (Slides 1–5) at the start of the hands-on Colab session and the 5-minute wrap-up (Slides 6–9) at the end.
 
 ---
 
-## Slayt 2 · Kanca (Hook): "Bu Grafikle Para Kazanabilir miyiz?" (16:34)
-- **Başlık:** 15 Satır PyTorch Koduyla "Kusursuz" Fiyat Tahmini mi?
-- **Maddeler:**
-  - Mavi çizgi: `THYAO.IS` gerçek test dönemi kapanış fiyatları; kırmızı çizgi: LSTM modelimizin tahmini.
-  - İnternetteki yüzlerce blog yazısı ve videoda bu grafiği "yapay zekâ borsayı çözdü" başlığıyla görürsünüz.
-  - **Soru:** Yarın sabah bu modeli canlıya bağlasak para kazanır mıyız? Cevabı saat 17:50'de birlikte ortaya çıkaracağız.
-- **Kullanılacak Defter Grafiği:** `docs/hook_preview.png` (`Bölüm 0 / Bölüm 4 — plot_price_deception` çıktısı).
+## Slide 1 · Cover and Quick Start (Opening — 16:30)
+- **Title:** Bringing AI to Financial Data: Time Series with PyTorch
+- **Subtitle:** Işık IEEE Computer Society Hands-on Workshop · Omar Elcircevi
+- **Bullets:**
+  - 💻 **Starter notebook (Colab):** `https://colab.research.google.com/github/omarcevi/pytorch-finance-workshop/blob/main/notebooks/workshop_starter.ipynb` *(large QR code + short link on the slide: `omarcevi.dev/w/pytorch-finans`)*
+  - 📘 **Step-by-step guide:** `https://omarcevi.dev/workshops/pytorch-finance-workshop/`
+  - ⚠️ **Note:** For education only; not investment advice.
+- **Visual:** The Colab badge and a large QR code to the starter notebook.
 
 ---
 
-## Slayt 3 · Bugünün Yol Haritası (16:37)
-- **Başlık:** 2 Saat 15 Dakikada Neler İnşa Edeceğiz?
-- **Maddeler:**
-  - **16:40 – 17:15 | Veri ve Özellik Mühendisliği:** Borsa İstanbul (`THYAO.IS`) OHLCV verisi, logaritmik getiri, volatilite, RSI ve veri sızıntısız (leak-free) kronolojik bölme.
-  - **17:15 – 17:35 | Sıfırdan PyTorch:** `Tensor`, `SlidingWindowDataset` (30 gün), `nn.LSTM` mimarisi ve 5 adımlı eğitim döngüsü (`training loop`).
-  - **17:45 – 18:25 | Büyük Sürpriz ve Doğru Kurulum:** Fiyat tahmininin arkasındaki 1 günlük gecikme yanılsaması, saf referans modeli (naive baseline) ve yön sınıflandırması + Walk-Forward doğrulama.
-- **Görsel:** Zaman çizelgesi akış şeması (`Bölüm 1 -> Bölüm 6` ve her bölüm başındaki **🔄 Yetiştir** güvencesi).
+## Slide 2 · Hook: "Could We Make Money with This Chart?" (16:34)
+- **Title:** A "Perfect" Price Prediction with 15 Lines of PyTorch?
+- **Bullets:**
+  - Blue line: actual `THYAO.IS` closing prices in the test period; red line: our LSTM model's prediction.
+  - You will find this chart in hundreds of blog posts and videos online, under headlines like "AI has cracked the stock market".
+  - **Question:** If we hooked this model up live tomorrow morning, would we make money? We'll find the answer together at 17:50.
+- **Notebook chart:** `docs/hook_preview.png` (`Part 0 / Part 4 — plot_price_deception` output).
 
 ---
 
-## Slayt 4 · Altın Kural: Zaman Serilerinde Geleceği Sızdırmamak (16:55 Geçişi)
-- **Başlık:** Veri Sızıntısı (Data Leakage) Nerede Saklanır?
-- **Maddeler:**
-  - **Kural 1:** Rastgele `shuffle=True` ile train/test bölünmez; geçmişte eğitilir, gelecekte test edilir (%70 Train / %15 Val / %15 Test).
-  - **Kural 2:** `StandardScaler.fit()` yalnızca **Eğitim (Train)** bölgesinde çağrılır; tüm veriye `fit` etmek gelecekteki ortalama ve oynaklığı geçmişe sızdırır.
-  - **Kural 3:** Eksik günler yalnızca geçmiş değerle (`ffill`) doldurulur; asla gelecekten geriye (`bfill`) doldurulmaz.
-- **Kullanılacak Defter Grafiği:** `guide/images/chronological_split.svg` (`Bölüm 2 — plot_chronological_split` çıktısı).
+## Slide 3 · Today's Roadmap (16:37)
+- **Title:** What Will We Build in 2 Hours 15 Minutes?
+- **Bullets:**
+  - **16:40 – 17:15 | Data and Feature Engineering:** Borsa Istanbul (`THYAO.IS`) OHLCV data, log returns, volatility, RSI and a leak-free chronological split.
+  - **17:15 – 17:35 | PyTorch from Scratch:** `Tensor`, `SlidingWindowDataset` (30 days), the `nn.LSTM` architecture and the five-step training loop.
+  - **17:45 – 18:25 | The Big Surprise and the Right Setup:** the one-day-lag illusion behind price prediction, the naive baseline, and direction classification + walk-forward validation.
+- **Visual:** A timeline flowchart (`Part 1 -> Part 6`, with the **🔄 Catch up** safety net at the start of each part).
 
 ---
 
-## Slayt 5 · PyTorch LSTM Mimarisi ve Boyut Takibi (17:15 Geçişi)
-- **Başlık:** 30 Günlük Pencereden Tek Tahmine: Tensör Boyutları
-- **Maddeler:**
-  - Girdi tensörü `bx`: **`(batch=64, seq_len=30, features=4)`** — 64 örnek, 30 iş günü, 4 özellik.
-  - `nn.LSTM(4, 32, batch_first=True)` çıktısı: **`(64, 30, 32)`** — her gün için 32 boyutlu gizli durum.
-  - Son günün özeti `out[:, -1, :]`: **`(64, 32)`** $\rightarrow$ `nn.Linear(32, 1)` $\rightarrow$ **`(64,)`** tahmin vektörü.
-- **Kullanılacak Defter Grafiği:** `Bölüm 3 — plot_training_curves` (Eğitim ve doğrulama MSE kayıp eğrisi).
+## Slide 4 · The Golden Rule: Don't Leak the Future into Time Series (16:55 transition)
+- **Title:** Where Does Data Leakage Hide?
+- **Bullets:**
+  - **Rule 1:** Never split train/test with a random `shuffle=True`; train on the past, test on the future (70% train / 15% val / 15% test).
+  - **Rule 2:** Call `StandardScaler.fit()` on the **training** region only; fitting on all the data leaks the future mean and volatility into the past.
+  - **Rule 3:** Fill missing days only with past values (`ffill`); never fill backwards from the future (`bfill`).
+- **Notebook chart:** `guide/images/chronological_split.svg` (`Part 2 — plot_chronological_split` output).
 
 ---
 
-## Slayt 6 · Sürpriz Anı: Neden "Yarın = Bugün" Modeli LSTM'i Geçti? (17:55)
-- **Başlık:** Göz Yanılsaması: Tahmin Değil, 1 Günlük Gecikme (Lag)!
-- **Maddeler:**
-  - `THYAO.IS` Test Seti: **LSTM MAE = 5.07 TL** iken, hiçbir şey öğrenmeyen **Saf Referans ($\hat{P}_{t+1} = P_t$) MAE = 4.55 TL**!
-  - Son 35 güne yakınlaştığımızda kırmızı tahmin çizgisinin, mavi gerçek fiyat serisinin **1 gün sağa kaydırılmış kopyası** olduğu görülür (`Lag 1` korelasyonu = **0.991**).
-  - Neden? Fiyatlar rastgele yürüyüşe ($P_{t+1} = P_t + \epsilon$) çok yakındır; MSE kaybını minimize etmenin en kolay yolu dünün fiyatını tekrar etmektir.
-- **Kullanılacak Defter Grafiği:** `guide/images/zoom_and_lag.svg` (`Bölüm 4 — plot_zoom_and_lag` ikili grafiği).
+## Slide 5 · PyTorch LSTM Architecture and Shape Tracking (17:15 transition)
+- **Title:** From a 30-Day Window to One Prediction: Tensor Shapes
+- **Bullets:**
+  - Input tensor `bx`: **`(batch=64, seq_len=30, features=4)`** — 64 samples, 30 trading days, 4 features.
+  - `nn.LSTM(4, 32, batch_first=True)` output: **`(64, 30, 32)`** — a 32-dimensional hidden state for each day.
+  - Summary of the last day, `out[:, -1, :]`: **`(64, 32)`** $\rightarrow$ `nn.Linear(32, 1)` $\rightarrow$ **`(64,)`** prediction vector.
+- **Notebook chart:** `Part 3 — plot_training_curves` (training and validation MSE loss curves).
 
 ---
 
-## Slayt 7 · Doğru Kurulum: Yön Sınıflandırması ve %50 Gerçeği (18:15)
-- **Başlık:** Fiyat Seviyesi Yerine Getiri Yönü (`BCEWithLogitsLoss`)
-- **Maddeler:**
-  - Durağan özellikler (`log_return`, hareketli ortalama, volatilite, RSI) ile yarının yönünü (`Yükseliş = 1 / Düşüş = 0`) sınıflandırıyoruz.
-  - Tek test bölgesi doğruluğu **%54.74** (Çoğunluk sınıfı referansı: **%51.90**); 4 katlı **Walk-Forward** ortalaması **~%51.5**.
-  - Dürüst bir kurulumda günlük yön tahmini neden %50–%55 bandındadır? **Etkin piyasalar**, **yüksek gürültü** ve **değişen piyasa rejimleri**.
-- **Kullanılacak Defter Grafiği:** `guide/images/direction_results.svg` (`Bölüm 5 — plot_direction_results`: Karmaşıklık Matrisi ve Walk-Forward çubuk grafiği).
+## Slide 6 · The Twist: Why Did "Tomorrow = Today" Beat the LSTM? (17:55)
+- **Title:** An Optical Illusion: Not a Prediction, a One-Day Lag!
+- **Bullets:**
+  - `THYAO.IS` test set: **LSTM MAE = 5.07 TL**, while the **naive baseline ($\hat{P}_{t+1} = P_t$) MAE = 4.55 TL**, and the naive baseline learns nothing at all!
+  - Zooming into the last 35 days shows that the red prediction line is a **copy of the blue actual price series shifted one day to the right** (`Lag 1` correlation = **0.9915**).
+  - Why? Prices are very close to a random walk ($P_{t+1} = P_t + \epsilon$); the easiest way to minimise the MSE loss is to repeat yesterday's price.
+- **Notebook chart:** `guide/images/zoom_and_lag.svg` (`Part 4 — plot_zoom_and_lag` two-panel chart).
 
 ---
 
-## Slayt 8 · Küçük Bir Üstünlük Neden Yetmez? İşlem Maliyetleri (18:35)
-- **Başlık:** Komisyon ve Alım-Satım Makası (Slippage) Gerçeği
-- **Maddeler:**
-  - Model %54 doğrulukla yön bilse bile her pozisyon değişiminde ödenen **15 baz puan (%0.15)** işlem maliyeti brüt getiriyi hızla eritir.
-  - Gerçek kantitatif (quant) ekipler tek bir hissede günlük fiyat tahmini yapmaz: yüzlerce varlığı birlikte sıralar, alternatif veri kullanır ve işlem maliyetini doğrudan optimizasyona katar.
-- **Kullanılacak Defter Grafiği:** `Bölüm 6 Bonus 4 — İşlem Maliyetli Backtest` grafiği (Al-ve-Tut vs. Brüt Strateji vs. 15 bps Net Strateji).
+## Slide 7 · The Right Setup: Direction Classification and the 50% Reality (18:15)
+- **Title:** Return Direction Instead of Price Level (`BCEWithLogitsLoss`)
+- **Bullets:**
+  - We classify tomorrow's direction (`Up = 1 / Down = 0`) from stationary features (`log_return`, moving average, volatility, RSI).
+  - Single test-window accuracy **54.74%** against a majority-class baseline of **51.90%**. With 422 test predictions the 95% confidence interval is about **±4.8 points (≈50%–59.5%)**, so this cannot be told apart from chance. The 4-fold **walk-forward** mean is **51.66%**.
+  - Why is daily direction prediction in the 50–55% band in an honest setup? **Efficient markets**, **high noise** and **changing market regimes**.
+- **Notebook chart:** `guide/images/direction_results.svg` (`Part 5 — plot_direction_results`: confusion matrix and walk-forward bar chart).
 
 ---
 
-## Slayt 9 · Eve Götürülecek 3 Ders ve Kapanış (18:40)
-- **Başlık:** Özet: İyi Bir Veri Bilimci Olmanın 3 Kuralı
-- **Maddeler:**
-  1. **Her zaman saf bir referansla (baseline) yarışın:** "Yarın = Bugün" veya çoğunluk sınıfını geçemeyen model hiçbir şey öğrenmemiştir.
-  2. **Zaman sırasına saygı duyun:** Kronolojik bölme ve Walk-Forward doğrulama olmadan elde edilen yüksek skorlar yanıltıcıdır.
-  3. **Sızıntıyı (leakage) avlayın:** Gerçek olamayacak kadar iyi bir grafik (%90 doğruluk veya üst üste binen fiyat çizgisi) görürseniz, önce veri sızıntısını ve 1 günlük gecikmeyi kontrol edin.
-  - 🔗 **Kodlar ve Rehber:** `github.com/omarcevi/pytorch-finance-workshop` · `omarcevi.dev/workshops/pytorch-finance-workshop`
-  - ⚠️ *Bu atölyedeki hiçbir içerik yatırım tavsiyesi değildir.*
+## Slide 8 · Is That an Edge? Trading Costs and Uncertainty (18:35)
+- **Title:** One Good Backtest Is Not an Edge
+- **Bullets:**
+  - On the `THYAO.IS` test window buy & hold ends at **0.99x**, the strategy at **1.24x** gross and **1.18x** net after **15 basis points (0.15%)** per position change. With only **29** position changes, costs take little off; the same holds across 5 seeds (net **1.13x–1.24x**).
+  - Why we don't believe it yet: the model is in the market only about 1 day in 5 (it mostly says "down") during a flat market, and the 95% confidence interval on its 54.74% accuracy (±4.8 points, ≈50%–59.5%) includes both 50% and the 51.90% baseline. This is one lucky window, not evidence of an edge; the honest next step is to rerun it across seeds, tickers and walk-forward folds.
+  - Real quant teams don't predict the daily price of a single stock: they rank hundreds of assets together, use alternative data and build trading costs directly into the optimisation.
+- **Notebook chart:** The `Part 6 Challenge 4 (Bonus) — Backtest with trading costs` chart (buy & hold vs. gross strategy vs. strategy net of 15 bps).
+
+---
+
+## Slide 9 · 3 Takeaways and Wrap-up (18:40)
+- **Title:** Summary: 3 Rules for Being a Good Data Scientist
+- **Bullets:**
+  1. **Always race against a naive baseline:** A model that cannot beat "tomorrow = today" or the majority class has learned nothing.
+  2. **Respect time order:** High scores obtained without a chronological split and walk-forward validation are misleading.
+  3. **Hunt for leakage:** If you see a chart that is too good to be true (90% accuracy, or price lines sitting on top of each other), check for data leakage and the one-day lag first.
+  - 🔗 **Code and guide:** `github.com/omarcevi/pytorch-finance-workshop` · `omarcevi.dev/workshops/pytorch-finance-workshop`
+  - ⚠️ *Nothing in this workshop is investment advice.*

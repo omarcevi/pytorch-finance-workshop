@@ -1,78 +1,80 @@
-# Finansal Verilerle Yapay Zekâyı Buluşturmak — PyTorch Atölyesi
+# Bringing AI to Financial Data — PyTorch Workshop
 
 [![Open Starter In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/omarcevi/pytorch-finance-workshop/blob/main/notebooks/workshop_starter.ipynb)
-[![Adım Adım Rehber](https://img.shields.io/badge/Rehber-omarcevi.dev-2563eb)](https://omarcevi.dev/workshops/pytorch-finance-workshop/)
+[![Step-by-step guide](https://img.shields.io/badge/Guide-omarcevi.dev-2563eb)](https://omarcevi.dev/workshops/pytorch-finance-workshop/)
 
-**Işık IEEE Computer Society** için hazırlanan **2 saat 15 dakikalık** uygulamalı PyTorch atölyesi.
-- 📍 **Yer:** Işık Üniversitesi Şile Kampüsü, DMF-214
-- 🗓️ **Tarih ve Saat:** 18 Kasım 2026 Çarşamba, 16:30–18:45
-- 📘 **Adım Adım Rehber (İngilizce):** [omarcevi.dev/workshops/pytorch-finance-workshop](https://omarcevi.dev/workshops/pytorch-finance-workshop/)
+A **2 hour 15 minute** hands-on PyTorch workshop prepared for **Işık IEEE Computer Society**.
+- 📍 **Venue:** Işık University Şile Campus, DMF-214
+- 🗓️ **Date and time:** Wednesday 18 November 2026, 16:30–18:45
+- 📘 **Step-by-step guide:** [omarcevi.dev/workshops/pytorch-finance-workshop](https://omarcevi.dev/workshops/pytorch-finance-workshop/)
 
-> ⚠️ **Yasal Uyarı (Yatırım Tavsiyesi Değildir):** Bu depodaki tüm defterler, kodlar ve analizler yalnızca **makine öğrenmesi ve PyTorch eğitimi** amaçlıdır. Hiçbir içerik yatırım tavsiyesi niteliği taşımaz ve buradaki modeller gerçek alım-satım aracı olarak **kullanılmamalıdır**.
+The notebooks, their printed output and charts, and the written guide are all in English.
+
+> ⚠️ **Disclaimer (Not Investment Advice):** All notebooks, code and analysis in this repository are for **machine learning and PyTorch education** only. Nothing here is investment advice, and these models **must not** be used as real trading tools.
 
 ---
 
-## Hızlı Başlangıç (Google Colab — Kurulum Gerekmez)
+## Quick Start (Google Colab — Nothing to Install)
 
-| Defter | Açıklama | Bağlantı |
+| Notebook | Description | Link |
 |---|---|---|
-| **`workshop_starter.ipynb`** | **Başlangıç Defteri (Katılımcılar için):** Atölye boyunca birlikte dolduracağımız `TODO` hücrelerini ve her bölüm başındaki **"🔄 Yetiştir"** kurtarma hücrelerini içerir. | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/omarcevi/pytorch-finance-workshop/blob/main/notebooks/workshop_starter.ipynb) |
-| **`workshop_solution.ipynb`** | **Çözüm Defteri (Referans):** Tüm çözüm kodları ve ölçülmüş çıktılarıyla tam sürüm. | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/omarcevi/pytorch-finance-workshop/blob/main/notebooks/workshop_solution.ipynb) |
+| **`workshop_starter.ipynb`** | **Starter notebook (for participants):** contains the `TODO` cells we fill in together during the workshop and a **"🔄 Catch up"** recovery cell at the start of each part. | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/omarcevi/pytorch-finance-workshop/blob/main/notebooks/workshop_starter.ipynb) |
+| **`workshop_solution.ipynb`** | **Solution notebook (reference):** the full version with all solution code and measured outputs. | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/omarcevi/pytorch-finance-workshop/blob/main/notebooks/workshop_solution.ipynb) |
 
 ---
 
-## Atölye Hikâyesi ve Zaman Çizelgesi
+## Workshop Story and Schedule
 
-| # | Saat | Bölüm | Öğrenilenler ve Uygulama |
+| # | Time | Part | What you learn and do |
 |---|---|---|---|
-| **0** | 16:30–16:40 | **Giriş (Hook)** | Bölüm 4'teki "kusursuz" fiyat tahmini grafiğine ilk bakış: *"Bu grafikle para kazanabilir miyiz?"* |
-| **1** | 16:40–16:55 | **Kurulum ve Veri** | `THYAO.IS` verisini `yfinance` (veya yedek snapshot) ile indirme, OHLCV ve düzeltilmiş fiyatların görselleştirilmesi. |
-| **2** | 16:55–17:15 | **Temizlik ve Özellikler** | Eksik günler (`ffill`), logaritmik getiri, hareketli ortalama, volatilite, RSI, kronolojik bölme (%70/%15/%15) ve yalnızca eğitim setinde fit edilen `StandardScaler`. |
-| **3** | 17:15–17:35 | **PyTorch Temelleri** | `Tensor`, 30 günlük `SlidingWindowDataset`, `DataLoader`, `nn.LSTM` mimarisi, her adımda tensör boyutları (`batch, seq_len, features`) ve 5 adımlı eğitim döngüsü. |
-| **—** | 17:35–17:45 | **Ara (Mola)** | 10 dakika mola. |
-| **4** | 17:45–18:05 | **Fiyat Tahmini ve Sürpriz** | Ertesi gün fiyat tahmini, *"Yarın = Bugün"* saf referans modeliyle (naive baseline) MAE/RMSE karşılaştırması ve yakınlaştırılmış grafikte 1 günlük gecikme (`Lag 1`) analizi. |
-| **5** | 18:05–18:25 | **Doğru Kurulum** | Getiri tabanlı özelliklerle ertesi gün yön sınıflandırması (`BCEWithLogitsLoss`), çoğunluk sınıfı referansı, karmaşıklık matrisi ve 4 katlı Walk-Forward doğrulama. |
-| **6** | 18:25–18:40 | **Meydan Okumalar** | Kendi sembolünü deneme, hacim özelliği ekleme, `GRU` ve `TinyTransformer` modelleri, işlem maliyetli (`15 bps`) backtest. |
-| **7** | 18:40–18:45 | **Kapanış** | Eve götürülecek 3 temel ders, gerçek quant ekiplerinin farkı ve kaynaklar. |
+| **0** | 16:30–16:40 | **Intro (Hook)** | A first look at the "perfect" price prediction chart from Part 4: *"Could we make money with this chart?"* |
+| **1** | 16:40–16:55 | **Setup and Data** | Downloading `THYAO.IS` data with `yfinance` (or the snapshot fallback), and plotting OHLCV and adjusted prices. |
+| **2** | 16:55–17:15 | **Cleaning and Features** | Missing days (`ffill`), log returns, moving average, volatility, RSI, a chronological split (70%/15%/15%) and a `StandardScaler` fitted on the training set only. |
+| **3** | 17:15–17:35 | **PyTorch Basics** | `Tensor`, a 30-day `SlidingWindowDataset`, `DataLoader`, the `nn.LSTM` architecture, the tensor shapes at every step (`batch, seq_len, features`) and the five-step training loop. |
+| **—** | 17:35–17:45 | **Break** | 10-minute break. |
+| **4** | 17:45–18:05 | **Price Prediction and the Surprise** | Next-day price prediction, an MAE/RMSE comparison with the *"tomorrow = today"* naive baseline, and the one-day lag (`Lag 1`) on a zoomed-in chart. |
+| **5** | 18:05–18:25 | **The Right Setup** | Next-day direction classification on return features (`BCEWithLogitsLoss`), a majority-class baseline, a confusion matrix and 4-fold walk-forward validation. |
+| **6** | 18:25–18:40 | **Challenges** | Trying your own ticker, adding a volume feature, `GRU` and `TinyTransformer` models, a backtest with trading costs (`15 bps`). |
+| **7** | 18:40–18:45 | **Wrap-up** | Three takeaways, what real quant teams do differently, and resources. |
 
 ---
 
-## Depo Yapısı
+## Repository Structure
 
 ```text
 notebooks/
-  workshop_solution.ipynb      # Tek doğruluk kaynağı (Single source of truth)
-  workshop_starter.ipynb       # make_starter.py ile otomatik üretilir (elle düzenlenmez)
+  workshop_solution.ipynb      # Single source of truth
+  workshop_starter.ipynb       # Generated by make_starter.py (do not edit by hand)
 src/
-  workshop_utils.py            # Yedekli veri yükleme, özellikler, modeller, grafikler ve Yetiştir fonksiyonları
+  workshop_utils.py            # Data loading with fallback, features, models, plots and catch_up_part_* helpers
 data/
-  README.md                    # Yedek veri (snapshot) açıklaması (ham CSV'ler git dışındadır)
+  README.md                    # About the snapshot data (the raw CSVs are kept out of git)
 scripts/
-  make_starter.py              # Çözüm bloklarını (# BEGIN/END SOLUTION) TODO hücrelerine dönüştürür
-  snapshot_data.py             # Varsayılan 5 sembol için yedek CSV dosyalarını yeniler
-  build_notebooks.py           # Çözüm ve başlangıç defterlerini oluşturur
-  generate_assets.py           # Ön-üretilmiş görselleri (hook_preview.png ve SVG diyagramları) üretir
+  make_starter.py              # Turns solution blocks (# BEGIN/END SOLUTION) into TODO cells
+  snapshot_data.py             # Refreshes the snapshot CSV files for the 5 default tickers
+  build_notebooks.py           # Builds the solution and starter notebooks
+  generate_assets.py           # Generates the pre-built images (hook_preview.png and the SVG diagrams)
 guide/
-  pytorch-finance-workshop.md  # omarcevi.dev/workshops/pytorch-finance-workshop rehber kaynağı
-  images/                      # Rehber SVG diyagramları
+  pytorch-finance-workshop.md  # Source of the guide at omarcevi.dev/workshops/pytorch-finance-workshop
+  images/                      # SVG diagrams for the guide
 docs/
-  VERIFIED.md                  # Doğrulanmış yfinance ve Colab paket davranışları
-  INSTRUCTOR.md                # Dakika dakika eğitmen akış çizelgesi, konuşma metinleri ve SSS
-  DRY_RUN.md                   # Canlı Colab provası süreleri ve 5 sembol × 3 tohum ölçüm tablosu
-  SLIDES_OUTLINE.md            # Açılış ve kapanış için 9 slaytlık sunum taslağı
+  VERIFIED.md                  # Verified yfinance and Colab package behaviour
+  INSTRUCTOR.md                # Minute-by-minute instructor run sheet, script lines and FAQ
+  DRY_RUN.md                   # Live Colab rehearsal timings and the 5 tickers × 3 seeds results
+  SLIDES_OUTLINE.md            # 9-slide outline for the opening and the wrap-up
 tests/
-  test_unit.py                 # Birim testleri (ağsız fallback, sızıntısızlık, Yetiştir hücreleri)
-  test_notebooks.py            # Uçtan uca defter yürütme, süre (< 5 dk) ve metrik testleri
+  test_unit.py                 # Unit tests (offline fallback, no leakage, catch-up cells)
+  test_notebooks.py            # End-to-end notebook execution, runtime (< 5 min) and metric tests
 ```
 
 ---
 
-## Yerel Çalıştırma ve Testler
+## Running Locally and Tests
 
 ```bash
 pip install -r requirements.txt
-python3 scripts/snapshot_data.py              # Yedek verileri data/ klasörüne indirir
-python3 scripts/make_starter.py               # Başlangıç defterini günceller
-ruff check src/ scripts/ tests/               # Kod kalitesi kontrolü
-WORKSHOP_FORCE_FALLBACK=1 pytest -v           # Tüm birim ve defter yürütme testlerini çalıştırır
+python3 scripts/snapshot_data.py              # Downloads the snapshot data into data/
+python3 scripts/make_starter.py               # Updates the starter notebook
+ruff check src/ scripts/ tests/               # Code quality check
+WORKSHOP_FORCE_FALLBACK=1 pytest -v           # Runs all unit and notebook execution tests
 ```

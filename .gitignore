@@ -1,8 +1,8 @@
-# Yahoo Finance Kullanım Koşulları gereği ham piyasa verisi (CSV/Parquet) git geçmişine eklenmez
+# Raw market data (CSV/Parquet) stays out of git history under the Yahoo Finance Terms of Service
 data/*.csv
 data/*.parquet
 
-# Python ve test önbellekleri
+# Python and test caches
 __pycache__/
 *.py[cod]
 .pytest_cache/
