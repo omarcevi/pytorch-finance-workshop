@@ -241,3 +241,31 @@ def test_every_yetistir_cell_works_in_fresh_process() -> None:
         )
         assert proc.returncode == 0, f"{cell['id']} Yetiştir hücresi başarısız oldu:\n{proc.stderr}"
         assert "✅" in proc.stdout
+
+
+def test_every_yetistir_cell_restores_its_section() -> None:
+    """Sıfırlanmış çalışma zamanında Yetiştir hücresinden sonra bölümün kalan çözüm hücreleri de çalışmalıdır.
+
+    (Yetiştir hücresi tek başına çalışıp np/plt/torch gibi isimleri yüklemezse bir sonraki hücre NameError verir.)
+    """
+    sol_nb = json.loads((ROOT / "notebooks" / "workshop_solution.ipynb").read_text(encoding="utf-8"))
+    code_cells = [c for c in sol_nb["cells"] if c["cell_type"] == "code"]
+    starts = [i for i, c in enumerate(code_cells) if c["id"].endswith("-catchup")]
+    assert len(starts) == 6
+
+    env = {**subprocess.os.environ, "WORKSHOP_FORCE_FALLBACK": "1", "MPLBACKEND": "Agg"}
+    for k, start in enumerate(starts):
+        end = starts[k + 1] if k + 1 < len(starts) else len(code_cells)
+        section = code_cells[start:end]
+        code = "display = print\n" + "\n".join("".join(c["source"]) for c in section)
+        proc = subprocess.run(
+            [sys.executable, "-c", code],
+            cwd=str(ROOT),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=180,
+            check=False,
+        )
+        ids = [c["id"] for c in section]
+        assert proc.returncode == 0, f"Yetiştir sonrası bölüm çalışmadı ({ids}):\n{proc.stderr[-2000:]}"
