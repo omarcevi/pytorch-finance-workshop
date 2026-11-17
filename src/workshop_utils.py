@@ -942,6 +942,110 @@ def setup_notebook() -> None:
     shell.set_custom_exc((NotImplementedError, WorkshopCheckError), _handler)
 
 
+# --- Self-checks: one per TODO -----------------------------------------------------------
+
+
+def _require_dataframe(todo: int, name: str, value: Any, hint: str) -> None:
+    if not isinstance(value, pd.DataFrame):
+        raise WorkshopCheckError(todo, f"{name} isn't a DataFrame yet (got {type(value).__name__}).", hint)
+
+
+def _close(a: Any, b: Any, rtol: float = 1e-6, atol: float = 1e-10) -> bool:
+    a, b = np.asarray(a, dtype=np.float64), np.asarray(b, dtype=np.float64)
+    return a.shape == b.shape and bool(np.allclose(a, b, rtol=rtol, atol=atol, equal_nan=True))
+
+
+def check_todo_1(raw_df: pd.DataFrame) -> None:
+    """TODO 1: raw_df holds the OHLCV prices returned by load_prices."""
+    _require_dataframe(1, "raw_df", raw_df, "assign the result of load_prices(TICKER, start=..., end=...) to raw_df.")
+    missing = [c for c in REQUIRED_OHLCV_COLS if c not in raw_df.columns]
+    if missing:
+        raise WorkshopCheckError(
+            1,
+            f"raw_df is missing the OHLCV columns {missing}.",
+            "use the DataFrame load_prices returns as it is: Open, High, Low, Close and Volume.",
+        )
+    if len(raw_df) < MIN_HISTORY_ROWS:
+        raise WorkshopCheckError(1, f"raw_df has only {len(raw_df)} rows.", "load the full range: start=\"2015-01-01\", end=\"2026-11-17\".")
+    if not isinstance(raw_df.index, pd.DatetimeIndex) or not raw_df.index.is_monotonic_increasing:
+        raise WorkshopCheckError(1, "raw_df's index isn't dates in increasing order.", "use the DataFrame load_prices returns without re-sorting or resetting its index.")
+    print(f"✅ TODO 1 looks right: {len(raw_df)} days of prices, {raw_df.index[0].date()} -> {raw_df.index[-1].date()}.")
+
+
+def check_todo_2(feat_df: pd.DataFrame) -> None:
+    """TODO 2: log_return, roll_mean_5 and roll_std_10, computed from the close price."""
+    _require_dataframe(2, "feat_df", feat_df, "keep the feat_df line at the top of the cell.")
+    close = feat_df["Close"]
+    log_return = np.log(close / close.shift(1))
+    expected = [
+        ("log_return", log_return, "the log return is ln(today's close / yesterday's close): use np.log and .shift(1)."),
+        ("roll_mean_5", log_return.rolling(window=5).mean(), "take a 5-day rolling mean of log_return: .rolling(window=5).mean()."),
+        ("roll_std_10", log_return.rolling(window=10).std(), "take a 10-day rolling standard deviation of log_return: .rolling(window=10).std()."),
+    ]
+    for col, values, hint in expected:
+        if col not in feat_df.columns:
+            raise WorkshopCheckError(2, f"feat_df has no '{col}' column yet.", hint)
+        if not _close(feat_df[col], values):
+            raise WorkshopCheckError(2, f"the '{col}' column doesn't have the values we expect.", hint)
+    print("✅ TODO 2 looks right: log_return, roll_mean_5 and roll_std_10 match.")
+
+
+def check_todo_3(train_df: pd.DataFrame, val_df: pd.DataFrame, test_df: pd.DataFrame, feat_df: pd.DataFrame) -> None:
+    """TODO 3: a chronological 70% / 15% / 15% split of feat_df."""
+    hint = "use chronological_split(feat_df, train_ratio=0.70, val_ratio=0.15); never shuffle a time series."
+    for name, part in (("train_df", train_df), ("val_df", val_df), ("test_df", test_df)):
+        _require_dataframe(3, name, part, hint)
+    in_order = (
+        all(part.index.is_monotonic_increasing for part in (train_df, val_df, test_df))
+        and train_df.index.max() < val_df.index.min()
+        and val_df.index.max() < test_df.index.min()
+        and train_df.index.append([val_df.index, test_df.index]).equals(feat_df.index)
+    )
+    if not in_order:
+        raise WorkshopCheckError(3, "the split isn't chronological: train, validation and test must follow each other in time.", hint)
+    n = len(feat_df)
+    expected = (int(n * 0.70), int(n * 0.85) - int(n * 0.70), n - int(n * 0.85))
+    got = (len(train_df), len(val_df), len(test_df))
+    if got != expected:
+        raise WorkshopCheckError(
+            3,
+            f"the parts have {got[0]} / {got[1]} / {got[2]} rows; expected {expected[0]} / {expected[1]} / {expected[2]} (70% / 15% / 15%).",
+            "use train_ratio=0.70 and val_ratio=0.15.",
+        )
+    print(f"✅ TODO 3 looks right: train {got[0]}, validation {got[1]}, test {got[2]} days, in time order.")
+
+
+def check_todo_4(
+    x_train: np.ndarray,
+    x_val: np.ndarray,
+    x_test: np.ndarray,
+    train_df: pd.DataFrame,
+    val_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+) -> None:
+    """TODO 4: StandardScaler fitted on train_df[FEATURE_COLS] only, then applied to val and test."""
+    parts = (train_df, val_df, test_df)
+    raw = [p[FEATURE_COLS].values.astype(np.float64) for p in parts]
+    got = [np.asarray(x, dtype=np.float64) if x is not None else None for x in (x_train, x_val, x_test)]
+    for name, x, r in zip(("x_train", "x_val", "x_test"), got, raw, strict=True):
+        if x is None or x.shape != r.shape:
+            shape = None if x is None else x.shape
+            raise WorkshopCheckError(4, f"{name} has shape {shape}; expected {r.shape}.", "scale train_df[FEATURE_COLS].values, and the same columns of val_df and test_df.")
+
+    def matches(scalers: list[StandardScaler]) -> bool:
+        return all(_close(x, s.transform(r), rtol=1e-4, atol=1e-4) for x, s, r in zip(got, scalers, raw, strict=True))
+
+    train_scaler = StandardScaler().fit(raw[0])
+    if matches([train_scaler] * 3):
+        print("✅ TODO 4 looks right: the scaler learned its mean and std from train_df only.")
+        return
+    if matches([StandardScaler().fit(np.vstack(raw))] * 3):
+        raise WorkshopCheckError(4, "the scaler was fitted on all the data, so the test set leaked into it.", "call fit_transform on train_df only, then only transform on val_df and test_df.")
+    if matches([StandardScaler().fit(r) for r in raw]):
+        raise WorkshopCheckError(4, "val and test were fitted on their own data.", "use scaler.transform (not fit_transform) for x_val and x_test.")
+    raise WorkshopCheckError(4, "the scaled values don't match a scaler fitted on train_df[FEATURE_COLS].", "fit_transform learns the mean and std on train; transform only applies them.")
+
+
 # --- 'Catch up' functions ----------------------------------------------------------------
 
 
