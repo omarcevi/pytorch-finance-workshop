@@ -6,7 +6,7 @@
 **Işık IEEE Computer Society** için hazırlanan **2 saat 15 dakikalık** uygulamalı PyTorch atölyesi.
 - 📍 **Yer:** Işık Üniversitesi Şile Kampüsü, DMF-214
 - 🗓️ **Tarih ve Saat:** 18 Kasım 2026 Çarşamba, 16:30–18:45
-- 📘 **Adım Adım Türkçe Rehber:** [omarcevi.dev/workshops/pytorch-finance-workshop](https://omarcevi.dev/workshops/pytorch-finance-workshop/)
+- 📘 **Adım Adım Rehber (İngilizce):** [omarcevi.dev/workshops/pytorch-finance-workshop](https://omarcevi.dev/workshops/pytorch-finance-workshop/)
 
 > ⚠️ **Yasal Uyarı (Yatırım Tavsiyesi Değildir):** Bu depodaki tüm defterler, kodlar ve analizler yalnızca **makine öğrenmesi ve PyTorch eğitimi** amaçlıdır. Hiçbir içerik yatırım tavsiyesi niteliği taşımaz ve buradaki modeller gerçek alım-satım aracı olarak **kullanılmamalıdır**.
 

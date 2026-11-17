@@ -1,101 +1,103 @@
 ---
-title: Finansal Verilerle Yapay Zekâyı Buluşturmak
-description: Işık IEEE Computer Society PyTorch Atölyesi — Borsa İstanbul ve küresel finans verileri üzerinde sıfırdan LSTM eğitimi, 1 günlük gecikme sürprizi, veri sızıntısı kontrolü ve yön sınıflandırması.
+title: Bringing AI to Financial Data
+description: Işık IEEE Computer Society PyTorch workshop — training an LSTM from scratch on Borsa Istanbul and global market data, the one-day-lag surprise, checking for data leakage, and direction classification.
 ---
 
-<!-- omarcevi.dev/workshops/pytorch-finance-workshop/ bu dosyadan üretilir. -->
+<!-- omarcevi.dev/workshops/pytorch-finance-workshop/ is generated from this file. -->
 
-# Finansal Verilerle Yapay Zekâyı Buluşturmak
+# Bringing AI to Financial Data
 
-Finansal zaman serilerinde derin öğrenme modelleri kurmak, ilk bakışta "kusursuz" görünen ama gerçekte yalnızca dünün fiyatını kopyalayan tuzaklarla doludur. Bu 2 saat 15 dakikalık uygulamalı atölyede, Borsa İstanbul (`THYAO.IS`, `ASELS.IS`, `XU100.IS`) ve küresel piyasa (`BTC-USD`, `AAPL`) verileri üzerinde sıfırdan bir PyTorch eğitim döngüsü kuruyor; fiyat tahmini yanılsamasını saf bir referans modelle (*"Yarın = Bugün"*) çürütüyor ve problemi veri sızıntısı olmadan yön sınıflandırması olarak yeniden tanımlıyoruz. Çalışmanın sonunda elinizde gerçekçi metriklerle (**Walk-Forward** doğrulama ve işlem maliyetli backtest) test edilmiş, temiz bir PyTorch zaman serisi şablonu kalacak.
+Deep learning on financial time series is full of traps: models that look "perfect" at first glance but are really just copying yesterday's price. In this 2 hour 15 minute hands-on workshop we build a PyTorch training loop from scratch on Borsa Istanbul (`THYAO.IS`, `ASELS.IS`, `XU100.IS`) and global market (`BTC-USD`, `AAPL`) data. We debunk the price-prediction illusion with a naive baseline (*"tomorrow = today"*), then reframe the problem, without data leakage, as direction classification. You leave with a clean PyTorch time-series template tested with honest metrics (**walk-forward** validation and a backtest with trading costs).
 
-> **Önemli Uyarı (Yatırım Tavsiyesi Değildir):** Bu rehberdeki ve atölye defterlerindeki tüm kodlar, modeller ve analizler yalnızca **makine öğrenmesi ve PyTorch eğitimi** amaçlıdır. Hiçbir içerik yatırım tavsiyesi değildir ve buradaki modeller gerçek alım-satım aracı olarak **kullanılmamalıdır**.
+> **Important (Not Investment Advice):** All code, models and analysis in this guide and the workshop notebooks are for **machine learning and PyTorch education** only. Nothing here is investment advice, and these models **must not** be used as real trading tools.
 
-[![THYAO.IS test setinde gerçek fiyat ile LSTM fiyat tahmini karşılaştırması](images/hook_preview.svg)](images/hook_preview.svg)
+[![Actual price vs. LSTM price prediction on the THYAO.IS test set](images/hook_preview.svg)](images/hook_preview.svg)
 
-*Bölüm 0 Sorumuz: Mavi çizgi gerçek fiyatı, kırmızı kesikli çizgi ise LSTM tahminini gösteriyor. Bu grafikle para kazanabilir miyiz? Cevabı Bölüm 4'te büyüteçle ortaya çıkarıyoruz.*
+*Our Part 0 question: the blue line is the actual price, the red dashed line is the LSTM's prediction. Could we make money with this chart? We put it under the magnifying glass in Part 4.*
 
-**Ön Koşullar:**
-- Bir dizüstü bilgisayar ve **Google Colab** kullanmak için standart bir Google hesabı (yerel kurulum gerekmez, ücretsiz CPU çalışma zamanı yeterlidir).
-- Temel düzeyde Python ve `pandas` bilgisi; daha önce PyTorch eğitim döngüsü yazmış olmanız gerekmez.
+**Prerequisites:**
+- A laptop and a regular Google account for **Google Colab** (nothing to install locally; the free CPU runtime is enough).
+- Basic Python and `pandas`; you do not need to have written a PyTorch training loop before.
 
-**Defter Bağlantıları:**
-- **Başlangıç Defteri (Starter — Atölyede birlikte dolduracağımız defter):** [Colab'da Aç](https://colab.research.google.com/github/omarcevi/pytorch-finance-workshop/blob/main/notebooks/workshop_starter.ipynb)
-- **Çözüm Defteri (Solution — Tüm kodları ve çıktıları tamamlanmış referans):** [Colab'da Aç](https://colab.research.google.com/github/omarcevi/pytorch-finance-workshop/blob/main/notebooks/workshop_solution.ipynb)
+**Notebooks:**
+- **Starter notebook (the one we fill in together during the workshop):** [Open in Colab](https://colab.research.google.com/github/omarcevi/pytorch-finance-workshop/blob/main/notebooks/workshop_starter.ipynb)
+- **Solution notebook (reference with all code and outputs filled in):** [Open in Colab](https://colab.research.google.com/github/omarcevi/pytorch-finance-workshop/blob/main/notebooks/workshop_solution.ipynb)
 
-**Atölye Zaman Çizelgesi (18 Kasım 2026 Çarşamba, 16:30–18:45 · DMF-214):**
+**Language note:** the workshop was taught in Turkish, so the notebooks' text, cell titles and printed output are in Turkish. The code in this guide is identical to the notebooks; only the comments are translated, and each expected output is explained in English.
 
-| Saat | Bölüm | Ne Yapıyoruz / Ne Öğreniyoruz? |
+**Schedule (Wednesday 18 November 2026, 16:30–18:45 · DMF-214):**
+
+| Time | Part | What we do and learn |
 |---|---|---|
-| 16:30–16:40 | **Bölüm 0 · Giriş (Hook)** | Bölüm 4'teki "kusursuz" fiyat tahmini grafiğine ilk bakış: *"Bu grafikle para kazanabilir miyiz?"* |
-| 16:40–16:55 | **Bölüm 1 · Kurulum ve Veri** | `THYAO.IS` verisini indirme, yedek (snapshot) mekanizması, OHLCV ve düzeltilmiş fiyatların görselleştirilmesi. |
-| 16:55–17:15 | **Bölüm 2 · Temizlik ve Özellikler** | Eksik günler (`ffill`), logaritmik getiri, hareketli ortalama, volatilite, RSI, kronolojik bölme (%70/%15/%15) ve sızıntısız `StandardScaler`. |
-| 17:15–17:35 | **Bölüm 3 · PyTorch Temelleri** | `Tensor`, 30 günlük `SlidingWindowDataset`, `DataLoader`, `nn.LSTM` mimarisi, her adımda tensör boyutları ve eğitim döngüsü. |
-| 17:35–17:45 | **Ara (Mola)** | 10 dakika çay/kahve molası. |
-| 17:45–18:05 | **Bölüm 4 · Fiyat Tahmini ve Sürpriz** | Ertesi gün fiyat tahmini, *"Yarın = Bugün"* saf referans modeliyle MAE/RMSE karşılaştırması ve 1 günlük gecikme (lag) analizi. |
-| 18:05–18:25 | **Bölüm 5 · Doğru Kurulum** | Getiri tabanlı özelliklerle ertesi gün yön sınıflandırması (`BCEWithLogitsLoss`), çoğunluk sınıfı referansı ve 4 katlı Walk-Forward doğrulama. |
-| 18:25–18:40 | **Bölüm 6 · Meydan Okumalar** | Kendi sembolünü deneme, hacim özelliği ekleme, `GRU` ve `TinyTransformer` modelleri, işlem maliyetli (15 bps) backtest. |
-| 18:40–18:45 | **Bölüm 7 · Kapanış** | Eve götürülecek 3 temel ders, gerçek quant ekiplerinin farkı ve kaynaklar. |
+| 16:30–16:40 | **Part 0 · Intro (Hook)** | A first look at the "perfect" price prediction from Part 4: *"Could we make money with this chart?"* |
+| 16:40–16:55 | **Part 1 · Setup and Data** | Downloading `THYAO.IS`, the snapshot fallback, OHLCV and adjusted prices on a chart. |
+| 16:55–17:15 | **Part 2 · Cleaning and Features** | Missing values (`ffill`), log returns, moving average, volatility, RSI, a chronological 70/15/15 split and a leak-free `StandardScaler`. |
+| 17:15–17:35 | **Part 3 · PyTorch Basics** | `Tensor`, a 30-day `SlidingWindowDataset`, `DataLoader`, the `nn.LSTM` architecture, tensor shapes at every step and the training loop. |
+| 17:35–17:45 | **Break** | 10-minute tea and coffee break. |
+| 17:45–18:05 | **Part 4 · Price Prediction and the Surprise** | Next-day price prediction, MAE/RMSE against the *"tomorrow = today"* naive baseline, and the one-day lag analysis. |
+| 18:05–18:25 | **Part 5 · The Right Setup** | Next-day direction classification on return features (`BCEWithLogitsLoss`), a majority-class baseline and 4-fold walk-forward validation. |
+| 18:25–18:40 | **Part 6 · Challenges** | Your own ticker, a volume feature, `GRU` and `TinyTransformer` models, a backtest with trading costs (15 bps). |
+| 18:40–18:45 | **Part 7 · Wrap-up** | Three takeaways, what real quant teams do differently, and resources. |
 
-## Bölüm 1 · Kurulum ve Veri
+## Part 1 · Setup and Data
 
-**Hedef:** Çalışma ortamını hazırlamak, `THYAO.IS` günlük fiyat verisini hız sınırına (rate limit) takılmadan indirmek ve OHLCV yapısını görselleştirmek.
+**Goal:** Set up the environment, download daily `THYAO.IS` prices without getting stuck on rate limits, and visualise the OHLCV structure.
 
-**Temel Fikirler:**
-- **OHLCV Nedir?** Borsa verisinde her işlem günü beş sayıyla temsil edilir: **O**pen (Açılış), **H**igh (En Yüksek), **L**ow (En Düşük), **C**lose (Kapanış) ve **V**olume (İşlem Hacmi).
-- **Düzeltilmiş Fiyatlar (`auto_adjust=True`):** Şirketler temettü dağıttığında veya hisse bölünmesi yaptığında ham fiyatta yapay düşüşler oluşur. `yfinance` içinde `auto_adjust=True` kullanarak tüm geçmiş OHLC fiyatlarını bölünme ve temettülere göre düzeltilmiş olarak alırız.
-- **Kesintisiz Yedek Veri (Fallback):** Salondaki 40 kişi aynı anda Yahoo Finance sunucularına bağlandığında hız sınırına (`YFRateLimitError`) takılmak olasıdır. `load_prices` fonksiyonu hata veya boş tablo durumunda otomatik olarak yedek (snapshot) veriyi yükler.
+**Key ideas:**
+- **What is OHLCV?** Each trading day is summarised by five numbers: **O**pen, **H**igh, **L**ow, **C**lose and **V**olume.
+- **Adjusted prices (`auto_adjust=True`):** Dividends and stock splits create artificial drops in the raw price. With `auto_adjust=True`, `yfinance` returns all historical OHLC prices adjusted for splits and dividends.
+- **A fallback that always works:** When 40 people in one room hit Yahoo Finance at once, a rate limit (`YFRateLimitError`) is likely. On an error or an empty table, `load_prices` automatically loads snapshot data instead.
 
-**Yetiştir Hücresi:** `🔄 Yetiştir: Bölüm 1 (Çalışma zamanı sıfırlandıysa çalıştırın)`
+**Catch-up cell:** `🔄 Yetiştir: Bölüm 1 (Çalışma zamanı sıfırlandıysa çalıştırın)` (*"Catch up: Part 1 — run this if your runtime was reset"*)
 
-**Adım Adım Kod Açıklaması:**
+**Step-by-step code walkthrough:**
 
-İlk kurulum hücresini çalıştırdıktan sonra **TODO 1** (`sec1-load-code`) hücresinde `load_prices` fonksiyonunu çağırarak `THYAO.IS` verisini yüklüyoruz:
+After running the first setup cell, we load `THYAO.IS` by calling `load_prices` in **TODO 1** (`sec1-load-code`):
 
 ```python
 TICKER = "THYAO.IS"
 
-# TODO 1 çözümü:
+# TODO 1 solution:
 raw_df = load_prices(TICKER, start="2015-01-01", end="2026-11-17")
 
 print(f"Veri boyutu: {raw_df.shape} | Tarih aralığı: {raw_df.index.min().date()} -> {raw_df.index.max().date()}")
 display(raw_df.tail(5))
 ```
 
-Ardından kapanış fiyatını ve işlem hacmini `plot_ohlcv` ile alt alta çizdiriyoruz:
+Then we plot the close price and the volume one above the other with `plot_ohlcv`:
 
 ```python
 fig = plot_ohlcv(raw_df, ticker=TICKER)
 plt.show()
 ```
 
-[![THYAO.IS günlük kapanış fiyatı ve işlem hacmi](images/ohlcv.svg)](images/ohlcv.svg)
+[![THYAO.IS daily close price and trading volume](images/ohlcv.svg)](images/ohlcv.svg)
 
-*Beklenen Çıktı: `(3023, 5)` boyutunda tablo (`2015-01-01 -> 2026-11-16`) ve 2015'teki ~5 TL seviyesinden 2026'da 300+ TL seviyesine yükselen kapanış grafiği.*
+*Expected output: a table of shape `(3023, 5)` (`2015-01-01 -> 2026-11-16`) and a close-price chart that climbs from single-digit lira in 2015–2016 to over 300 TL in 2026.*
 
-**Sorun Giderme (Bu Adım Çalışmazsa):**
-- **Yahoo Finance Hız Sınırı (`YFRateLimitError` veya boş tablo):** Hiçbir şey yapmanıza gerek yoktur; `load_prices` ekrana `⚠️ Yahoo Finance'ten veri alınamadı... Yedek veri (snapshot) yükleniyor...` mesajını yazdırır ve yerel/bulut yedek veriyi yükler.
-- **`NameError: name 'load_prices' is not defined`:** Colab çalışma zamanınız yeniden başlamış olabilir. Bölüm 1'in başındaki **`🔄 Yetiştir: Bölüm 1`** hücresini çalıştırın.
+**Troubleshooting (if this step fails):**
+- **Yahoo Finance rate limit (`YFRateLimitError` or an empty table):** Nothing to do. `load_prices` prints `⚠️ Yahoo Finance'ten veri alınamadı... Yedek veri (snapshot) yükleniyor...` ("could not get data from Yahoo Finance, loading the snapshot") and loads the local or online snapshot.
+- **`NameError: name 'load_prices' is not defined`:** Your Colab runtime has probably restarted. Run the **`🔄 Yetiştir: Bölüm 1`** cell at the top of Part 1.
 
-## Bölüm 2 · Temizlik ve Özellikler
+## Part 2 · Cleaning and Features
 
-**Hedef:** Ham fiyatları durağan (stationary) getiri özelliklerine dönüştürmek, veriyi zaman sırasını bozmadan (%70/%15/%15) bölmek ve `StandardScaler` nesnesini veri sızıntısı olmadan yalnızca eğitim kümesinde fit etmek.
+**Goal:** Turn raw prices into stationary return features, split the data without breaking time order (70/15/15), and fit `StandardScaler` on the training set only, so nothing leaks.
 
-**Temel Fikirler:**
-- **Eksik Günler ve Kapalı Piyasalar:** Hafta sonları ve resmi tatillerde borsa kapalıdır. Eksik değerleri doldururken yalnızca geçmişteki son bilinen fiyatı ileri taşırız (`ffill`). Gelecekteki fiyatı geriye taşımak (`bfill`) geleceği kopyalamaktır.
-- **Neden Fiyat Yerine Logaritmik Getiri?** 2015'teki 6 TL ile 2026'daki 300 TL aynı ölçekte değildir. Logaritmik getiri $r_t = \ln(P_t / P_{t-1})$ seriyi ölçekten bağımsız ve durağan hale getirir.
-- **Kronolojik Bölme ve Scaler Sızıntısı:** Zaman serisi asla rastgele (`shuffle=True`) bölünmez. Ayrıca `StandardScaler.fit()` işlemi tüm veriye uygulanırsa 2026 yılının ortalama ve standart sapması 2018'deki eğitim verisine sızar.
+**Key ideas:**
+- **Missing values and closed markets:** Exchanges are closed at weekends and on public holidays. When filling missing values we only carry the last known past value forward (`ffill`). Carrying a future value backwards (`bfill`) is copying the future.
+- **Why log returns instead of prices?** 6 TL in 2015 and 300 TL in 2026 are not on the same scale. The log return $r_t = \ln(P_t / P_{t-1})$ makes the series scale-free and stationary.
+- **Chronological split and scaler leakage:** A time series is never split at random (`shuffle=True`). And if `StandardScaler.fit()` sees all the data, the mean and standard deviation of 2026 leak into the 2018 training data.
 
-**Yetiştir Hücresi:** `🔄 Yetiştir: Bölüm 2 (Önceki bölümü atladıysanız çalıştırın)`
+**Catch-up cell:** `🔄 Yetiştir: Bölüm 2 (Önceki bölümü atladıysanız çalıştırın)` (*"Catch up: Part 2 — run this if you skipped the previous part"*)
 
-**Adım Adım Kod Açıklaması:**
+**Step-by-step code walkthrough:**
 
-1. **TODO 2 (`sec2-feat-code`):** Günlük logaritmik getiriyi (`log_return`), 5 günlük hareketli ortalamayı (`roll_mean_5`) ve 10 günlük oynaklığı/volatiliteyi (`roll_std_10`) hesaplıyoruz:
+1. **TODO 2 (`sec2-feat-code`):** We compute the daily log return (`log_return`), the 5-day moving average of returns (`roll_mean_5`) and the 10-day volatility (`roll_std_10`):
 
 ```python
 feat_df = raw_df[["Open", "High", "Low", "Close", "Volume"]].ffill().dropna().copy()
 
-# TODO 2 çözümü:
+# TODO 2 solution:
 feat_df["log_return"] = np.log(feat_df["Close"] / feat_df["Close"].shift(1))
 feat_df["roll_mean_5"] = feat_df["log_return"].rolling(window=5).mean()
 feat_df["roll_std_10"] = feat_df["log_return"].rolling(window=10).std()
@@ -105,47 +107,47 @@ feat_df["up_day"] = (feat_df["log_return"] > 0.0).astype(np.float32)
 feat_df = feat_df.dropna().copy()
 ```
 
-2. **TODO 3 (`sec2-split-code`):** Özellik tablosunu zaman sırasıyla %70 Eğitim, %15 Doğrulama ve %15 Test olarak üçe bölüyoruz:
+2. **TODO 3 (`sec2-split-code`):** We split the feature table in time order into 70% train, 15% validation and 15% test:
 
 ```python
-# TODO 3 çözümü:
+# TODO 3 solution:
 train_df, val_df, test_df = chronological_split(feat_df, train_ratio=0.70, val_ratio=0.15)
 ```
 
-[![THYAO.IS kronolojik eğitim, doğrulama ve test bölgesi grafiği](images/chronological_split.svg)](images/chronological_split.svg)
+[![THYAO.IS chronological train, validation and test regions](images/chronological_split.svg)](images/chronological_split.svg)
 
-*Beklenen Çıktı: `Train: 2106 gün (2015-01-21 -> 2023-02-23)`, `Val: 451 gün (2023-02-24 -> 2024-11-26)`, `Test: 452 gün (2024-11-27 -> 2026-11-16)`.*
+*Expected output: `Train: 2106 gün (2015-01-21 -> 2023-04-05)`, `Val: 451 gün (2023-04-06 -> 2025-01-24)`, `Test: 452 gün (2025-01-27 -> 2026-11-16)` ("gün" means trading days).*
 
-3. **TODO 4 (`sec2-scaler-code`):** Ölçekleyiciyi (`StandardScaler`) **yalnızca `train_df`** üzerinde `fit_transform` ediyor, `val_df` ve `test_df` üzerinde ise yalnızca `transform` çağırıyoruz:
+3. **TODO 4 (`sec2-scaler-code`):** We call `fit_transform` on **`train_df` only**, and only `transform` on `val_df` and `test_df`:
 
 ```python
 from sklearn.preprocessing import StandardScaler
 
 scaler = StandardScaler()
 
-# TODO 4 çözümü:
+# TODO 4 solution:
 x_train = scaler.fit_transform(train_df[FEATURE_COLS].values.astype(np.float32))
 x_val = scaler.transform(val_df[FEATURE_COLS].values.astype(np.float32))
 x_test = scaler.transform(test_df[FEATURE_COLS].values.astype(np.float32))
 ```
 
-**Sorun Giderme (Bu Adım Çalışmazsa):**
-- **`KeyError: 'log_return'`:** `sec2-feat-code` hücresini çalıştırmadan bölme hücresine geçmiş olabilirsiniz; sırayla çalıştırın veya bölüm başındaki **`🔄 Yetiştir: Bölüm 2`** hücresini kullanın.
-- **`ValueError: Found array with 0 sample(s)`:** `dropna()` öncesi pencere hesaplamalarında yanlış sütun adı yazılmış olabilir; yukarıdaki 3 satırı kontrol edin.
+**Troubleshooting (if this step fails):**
+- **`KeyError: 'log_return'`:** You probably jumped to the split cell before running `sec2-feat-code`. Run the cells in order, or use the **`🔄 Yetiştir: Bölüm 2`** cell at the top of the part.
+- **`ValueError: Found array with 0 sample(s)`:** A column name in the rolling-window code is probably misspelled before `dropna()`. Check the three lines above.
 
-## Bölüm 3 · PyTorch Temelleri
+## Part 3 · PyTorch Basics
 
-**Hedef:** 30 günlük kayan pencere (`SlidingWindowDataset`) yapısını kurmak, `nn.LSTM` modelinde tensör boyutlarını (`batch, seq_len, features`) adım adım izlemek ve 5 adımlı PyTorch eğitim döngüsünü yazmak.
+**Goal:** Build the 30-day sliding window (`SlidingWindowDataset`), follow the tensor shapes (`batch, seq_len, features`) through `nn.LSTM` step by step, and write the five-step PyTorch training loop.
 
-**Temel Fikirler:**
-- **3 Boyutlu LSTM Girdisi:** `nn.LSTM(..., batch_first=True)` katmanı girdiyi `(batch_size, seq_len, features)` boyutunda bekler. Bizim kurulumumuzda bir batch `(64, 30, 4)` boyutundadır (64 örnek, 30 iş günü, 4 özellik).
-- **Eğitim İçinde Pencereleri Karıştırmak (`shuffle=True`):** Eğitim, doğrulama ve test kümelerimiz birbirinden kesin olarak zamanla ayrılmıştır. Ancak eğitim kümesinin *kendi içindeki* 30 günlük hazır pencereleri `DataLoader(..., shuffle=True)` ile karıştırmak veri sızıntısı yaratmaz; çünkü her pencere kendi içindeki 30 günlük zaman sırasını zaten korur.
+**Key ideas:**
+- **3-D LSTM input:** `nn.LSTM(..., batch_first=True)` expects input of shape `(batch_size, seq_len, features)`. In our setup one batch is `(64, 30, 4)`: 64 samples, 30 trading days, 4 features.
+- **Shuffling windows inside the training set (`shuffle=True`):** Our train, validation and test sets are strictly separated in time. Shuffling the ready-made 30-day windows *inside* the training set with `DataLoader(..., shuffle=True)` does not leak anything, because each window keeps its own 30-day order.
 
-**Yetiştir Hücresi:** `🔄 Yetiştir: Bölüm 3 (Önceki bölümü atladıysanız çalıştırın)`
+**Catch-up cell:** `🔄 Yetiştir: Bölüm 3 (Önceki bölümü atladıysanız çalıştırın)` (*"Catch up: Part 3 — run this if you skipped the previous part"*)
 
-**Adım Adım Kod Açıklaması:**
+**Step-by-step code walkthrough:**
 
-1. **TODO 5 (`sec3-dataset-code`):** `SlidingWindowDataset` ve `DataLoader` nesnelerini oluşturuyoruz:
+1. **TODO 5 (`sec3-dataset-code`):** We create the `SlidingWindowDataset` and `DataLoader` objects:
 
 ```python
 WINDOW_SIZE = 30
@@ -154,14 +156,14 @@ BATCH_SIZE = 64
 y_train_ret = train_df["log_return"].values.astype(np.float32)
 y_val_ret = val_df["log_return"].values.astype(np.float32)
 
-# TODO 5 çözümü:
+# TODO 5 solution:
 train_ds = SlidingWindowDataset(x_train, y_train_ret, window_size=WINDOW_SIZE)
 val_ds = SlidingWindowDataset(x_val, y_val_ret, window_size=WINDOW_SIZE)
 train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True)
 val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False)
 ```
 
-2. **TODO 6 (`sec3-model-code`):** `SimpleLSTM` sınıfının `forward` metodunda girdiyi LSTM'den geçirip yalnızca son zaman adımının gizli durumunu (`out[:, -1, :]`) doğrusal katmana (`self.fc`) veriyoruz:
+2. **TODO 6 (`sec3-model-code`):** In the `forward` method of `SimpleLSTM` we run the input through the LSTM and feed only the hidden state of the last time step (`out[:, -1, :]`) to the linear layer (`self.fc`):
 
 ```python
 class SimpleLSTM(nn.Module):
@@ -171,17 +173,17 @@ class SimpleLSTM(nn.Module):
         self.fc = nn.Linear(hidden_dim, 1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # TODO 6 çözümü:
+        # TODO 6 solution:
         out, _ = self.lstm(x)
         last_step = out[:, -1, :]
         return self.fc(last_step).squeeze(-1)
 ```
 
-3. **TODO 7 (`sec3-train-code`):** Klasik 5 adımlı PyTorch eğitim döngüsünü (`zero_grad -> forward -> loss -> backward -> step`) tamamlıyoruz:
+3. **TODO 7 (`sec3-train-code`):** We complete the classic five-step PyTorch training loop (`zero_grad -> forward -> loss -> backward -> step`):
 
 ```python
     for bx, by in train_loader:
-        # TODO 7 çözümü:
+        # TODO 7 solution:
         optimizer.zero_grad()
         pred = demo_model(bx)
         loss = criterion(pred, by)
@@ -190,82 +192,84 @@ class SimpleLSTM(nn.Module):
         batch_losses.append(loss.item())
 ```
 
-**Beklenen Çıktı (Tensör Boyutları ve Eğitim):**
+**Expected output (tensor shapes and training):**
 ```text
 1) Giriş tensörü (bx)          : torch.Size([64, 30, 4])
 2) LSTM tüm adımlar (lstm_out) : torch.Size([64, 30, 32])
 3) Son zaman adımı ([:, -1, :]): torch.Size([64, 32])
 4) Model çıktısı (pred_out)    : torch.Size([64])
-Son Epoch (10) -> Train MSE: 0.000733 | Val MSE: 0.000668
+Son Epoch (10) -> Train MSE: 0.000646 | Val MSE: 0.000509
 ```
 
-**Sorun Giderme (Bu Adım Çalışmazsa):**
-- **Boyut Hatası (`RuntimeError: input.size(-1) must be equal to input_size`):** `SimpleLSTM(input_dim=...)` parametresinin `len(FEATURE_COLS)` (yani `4`) olduğundan ve `nn.LSTM` içinde `batch_first=True` verildiğinden emin olun.
-- **`squeeze(-1)` unutulursa:** Model çıktısı `(64, 1)` olurken hedef `by` `(64,)` boyutundadır; `MSELoss` yayınlama (broadcasting) uyarısı verir. `return self.fc(last_step).squeeze(-1)` ile iki boyutu eşitleyin.
+*The four lines are the input batch, the LSTM output for every time step, the last time step, and the model output. The final MSE values can differ slightly between PyTorch versions.*
 
-## Bölüm 4 · Fiyat Tahmini ve Sürpriz
+**Troubleshooting (if this step fails):**
+- **Shape error (`RuntimeError: input.size(-1) must be equal to input_size`):** Make sure `SimpleLSTM(input_dim=...)` is `len(FEATURE_COLS)` (that is, `4`) and that `nn.LSTM` has `batch_first=True`.
+- **Forgot `squeeze(-1)`:** The model output is `(64, 1)` while the target `by` is `(64,)`, and `MSELoss` warns about broadcasting. Match them with `return self.fc(last_step).squeeze(-1)`.
 
-**Hedef:** Ertesi günün kapanış fiyatını tahmin eden bir LSTM eğitmek, uzaktan "kusursuz" görünen grafiğin aslında *"Yarın = Bugün"* saf referans modelinden (naive baseline) daha yüksek hataya sahip olduğunu ölçmek ve 1 günlük gecikmeyi (lag) görselleştirmek.
+## Part 4 · Price Prediction and the Surprise
 
-**Temel Fikirler:**
-- **İkinci Tuzak (Global Scaler ve Aktivasyon Doyması):** `THYAO.IS` fiyatı eğitim döneminde 4.5 TL – 151 TL aralığındayken test döneminde 242 TL – 348 TL aralığındadır. Tüm eğitim setine tek bir `StandardScaler` uygularsanız test girdileri $z > 6$ değerine çıkar ve LSTM'in `tanh`/`sigmoid` kapıları doyuma (saturation) ulaşarak düz bir çizgiye kilitlenir. Hikâyeyi bulandırmamak için `PriceWindowDataset` her 30 günlük pencereyi kendi ilk gününe göre (`fiyat / ilk_gün - 1`) bağıl olarak ölçekler.
-- **Saf Referans Modeli (Naive Baseline):** Hiç yapay zekâ kullanmadan *"Yarının fiyatı bugünün kapanış fiyatına eşittir"* ($\hat{P}_{t+1} = P_t$) diyen en basit kuraldır.
-- **1 Günlük Gecikme Yanılsaması:** Günlük hisse fiyatları rastgele yürüyüşe ($P_{t+1} = P_t + \epsilon$) çok yakındır. Karesel hatayı (MSE) minimize etmek isteyen LSTM, geleceği tahmin etmek yerine son gördüğü fiyatı ($P_t$) kopyalamayı öğrenir.
+**Goal:** Train an LSTM that predicts the next day's close, show that the chart that looks "perfect" from afar actually has a higher error than the *"tomorrow = today"* naive baseline, and visualise the one-day lag.
 
-**Yetiştir Hücresi:** `🔄 Yetiştir: Bölüm 4 (Moladan sonra temiz başlangıç için çalıştırın)`
+**Key ideas:**
+- **The second trap (global scaler and activation saturation):** `THYAO.IS` traded between 4.52 TL and 151 TL in the training period and between 242 TL and 348 TL in the test period. With one `StandardScaler` fitted on the whole training set, test inputs land at $z \approx 8$–$11$, the LSTM's `tanh`/`sigmoid` gates saturate, and the prediction locks into a flat line. To keep the story clean, `PriceWindowDataset` scales each 30-day window relative to its own first day (`price / first_day - 1`).
+- **The naive baseline:** The simplest rule there is, with no AI at all: *"tomorrow's price equals today's close"* ($\hat{P}_{t+1} = P_t$).
+- **The one-day-lag illusion:** Daily stock prices are very close to a random walk ($P_{t+1} = P_t + \epsilon$). An LSTM minimising squared error (MSE) learns to copy the last price it saw ($P_t$) instead of predicting the future.
 
-**Adım Adım Kod Açıklaması:**
+**Catch-up cell:** `🔄 Yetiştir: Bölüm 4 (Moladan sonra temiz başlangıç için çalıştırın)` (*"Catch up: Part 4 — run this for a clean start after the break"*)
 
-1. `sec4-train-code` hücresini çalıştırarak fiyat modelini 15 epoch eğitiyor ve uzaktan "kusursuz" görünen test grafiğini çizdiriyoruz.
-2. **TODO 8 (`sec4-naive-code`):** Gerçek fiyatlarla (`actual_prices`) hem LSTM tahmininin (`predicted_prices`) hem de saf referans modelinin (`naive_prices`) MAE ve RMSE hatalarını TL cinsinden hesaplıyoruz:
+**Step-by-step code walkthrough:**
+
+1. We run `sec4-train-code` to train the price model for 15 epochs and plot the test-set chart that looks "perfect" from afar.
+2. **TODO 8 (`sec4-naive-code`):** We compute the MAE and RMSE, in TL, of both the LSTM prediction (`predicted_prices`) and the naive baseline (`naive_prices`) against the actual prices (`actual_prices`):
 
 ```python
-# TODO 8 çözümü:
+# TODO 8 solution:
 lstm_mae = float(np.mean(np.abs(actual_prices - predicted_prices)))
 naive_mae = float(np.mean(np.abs(actual_prices - naive_prices)))
 lstm_rmse = float(np.sqrt(np.mean((actual_prices - predicted_prices) ** 2)))
 naive_rmse = float(np.sqrt(np.mean((actual_prices - naive_prices) ** 2)))
 ```
 
-3. `sec4-zoom-code` hücresini çalıştırarak son 35 iş gününe yakınlaşıyor ve gecikme (lag) korelasyonlarını çizdiriyoruz:
+3. We run `sec4-zoom-code` to zoom into the last 35 trading days and plot the lag correlations:
 
-[![THYAO.IS son 35 güne yakınlaştırma ve gecikme korelasyonu grafiği](images/zoom_and_lag.svg)](images/zoom_and_lag.svg)
+[![THYAO.IS zoom on the last 35 days and lag correlation chart](images/zoom_and_lag.svg)](images/zoom_and_lag.svg)
 
-**Beklenen Çıktı (Ölçülen Gerçek Değerler):**
+**Expected output (measured values):**
 ```text
-📊 LSTM Fiyat Modeli   -> MAE: 5.07 TL | RMSE: 6.46 TL
-📏 Saf Referans (P_t)  -> MAE: 4.55 TL | RMSE: 5.99 TL
-👉 Sonuç: Saf 'Yarın = Bugün' tahmini, LSTM'den 0.51 TL daha düşük hataya sahip!
-Tahminin BUGÜNÜN gerçek fiyatıyla korelasyonu (Lag 0): 0.9461
-Tahminin DÜNÜN gerçek fiyatıyla korelasyonu   (Lag 1): 0.9912
+📊 LSTM Fiyat Modeli   -> MAE: 5.07 TL | RMSE: 6.86 TL
+📏 Saf Referans (P_t)  -> MAE: 4.55 TL | RMSE: 6.26 TL
+👉 Sonuç: Saf 'Yarın = Bugün' tahmini, LSTM'den 0.52 TL daha düşük hataya sahip!
+Tahminin BUGÜNÜN gerçek fiyatıyla korelasyonu (Lag 0): 0.9451
+Tahminin DÜNÜN gerçek fiyatıyla korelasyonu   (Lag 1): 0.9915
 ```
 
-*Gördüğünüz gibi: LSTM tahmininin bugünün gerçek fiyatıyla korelasyonu `0.9461` iken, **dünün gerçek fiyatıyla (`Lag 1`) korelasyonu `0.9912`** düzeyindedir! Kırmızı çizgi, mavi çizginin 1 gün sağa kaydırılmış kopyasıdır.*
+*The naive "tomorrow = today" rule has 0.52 TL lower error than the LSTM. And look at the correlations: the LSTM prediction correlates `0.9451` with today's actual price, but **`0.9915` with yesterday's actual price (`Lag 1`)**. The red line is the blue line shifted one day to the right.*
 
-**Sorun Giderme (Bu Adım Çalışmazsa):**
-- **Moladan sonra Colab bağlantısı koptuysa:** Doğrudan bölüm başındaki **`🔄 Yetiştir: Bölüm 4`** hücresini çalıştırıp `sec4-train-code` ile devam edin.
+**Troubleshooting (if this step fails):**
+- **Your Colab connection dropped after the break:** Run the **`🔄 Yetiştir: Bölüm 4`** cell at the top of the part, then continue with `sec4-train-code`.
 
-## Bölüm 5 · Doğru Kurulum
+## Part 5 · The Right Setup
 
-**Hedef:** Problemi durağan getiri özellikleri üzerinde **ertesi günün yönü** (Yükseliş = `1`, Düşüş = `0`) ikili sınıflandırması olarak yeniden kurmak, `BCEWithLogitsLoss` ile eğitmek, çoğunluk sınıfı referansıyla karşılaştırmak ve 4 katlı **Walk-Forward** doğrulama yapmak.
+**Goal:** Reframe the problem on stationary return features as binary classification of **the next day's direction** (up = `1`, down = `0`), train it with `BCEWithLogitsLoss`, compare it with a majority-class baseline, and run 4-fold **walk-forward** validation.
 
-**Temel Fikirler:**
-- **`BCEWithLogitsLoss`:** İkili sınıflandırmada modelin son katmanından çıkan ham skoru (`logit`) alır, içeride sayısal olarak kararlı biçimde `sigmoid` uygular ve çapraz entropi kaybını hesaplar.
-- **Çoğunluk Sınıfı Referansı (Majority-Class Baseline):** Eğitim setinde yükseliş günleri %52 ise, test setindeki her güne "Yükseliş" diyen saf model %52 civarında doğruluk alır. Modelimizi hem doğruluk (`Accuracy`) hem de sınıf dengesizliğine duyarlı **Dengeli Doğruluk (`Balanced Accuracy`)** ile ölçeriz.
-- **Neden Dürüst Sonuç ~%50–%55 Bandındadır?** Etkin piyasalar, yüksek günlük gürültü ve değişen makroekonomik rejimler nedeniyle yalnızca geçmiş fiyatlardan yön tahmini yapmak yazı-turaya çok yakındır.
+**Key ideas:**
+- **`BCEWithLogitsLoss`:** Takes the raw score (`logit`) from the model's last layer, applies `sigmoid` internally in a numerically stable way, and computes the binary cross-entropy loss.
+- **Majority-class baseline:** If 52% of training days are up days, a naive model that says "up" for every test day scores about 52%. We measure the model with both `Accuracy` and **`Balanced Accuracy`**, which is sensitive to class imbalance.
+- **Why is the honest result around 50–55%?** Efficient markets, heavy daily noise and changing macroeconomic regimes make predicting direction from past prices alone very close to a coin toss.
 
-**Yetiştir Hücresi:** `🔄 Yetiştir: Bölüm 5 (Önceki bölümü atladıysanız çalıştırın)`
+**Catch-up cell:** `🔄 Yetiştir: Bölüm 5 (Önceki bölümü atladıysanız çalıştırın)` (*"Catch up: Part 5 — run this if you skipped the previous part"*)
 
-**Adım Adım Kod Açıklaması:**
+**Step-by-step code walkthrough:**
 
-**TODO 9 (`sec5-cls-code`):** `train_direction_classifier` yardımcı fonksiyonunu çağırarak yön sınıflandırma modelini eğitiyoruz:
+**TODO 9 (`sec5-cls-code`):** We train the direction classifier by calling the `train_direction_classifier` helper:
 
 ```python
 y_train_dir = train_df["up_day"].values.astype(np.float32)
 y_val_dir = val_df["up_day"].values.astype(np.float32)
 y_test_dir = test_df["up_day"].values.astype(np.float32)
 
-# TODO 9 çözümü:
+# TODO 9 solution:
 cls_res = train_direction_classifier(
     x_train,
     y_train_dir,
@@ -279,49 +283,51 @@ cls_res = train_direction_classifier(
 )
 ```
 
-Ardından `sec5-wf-code` hücresini çalıştırarak 4 katlı Walk-Forward doğrulamayı ve karmaşıklık matrisini çizdiriyoruz:
+Then we run `sec5-wf-code` for 4-fold walk-forward validation and the confusion matrix:
 
-[![THYAO.IS karmaşıklık matrisi ve Walk-Forward doğrulama sonuçları](images/direction_results.svg)](images/direction_results.svg)
+[![THYAO.IS confusion matrix and walk-forward validation results](images/direction_results.svg)](images/direction_results.svg)
 
-**Beklenen Çıktı (Ölçülen Gerçek Değerler):**
+**Expected output (measured values):**
 ```text
 🎯 LSTM Test Doğruluğu (Accuracy)         : %54.74
-⚖️ LSTM Dengeli Doğruluk (Balanced Acc)   : %53.50
+⚖️ LSTM Dengeli Doğruluk (Balanced Acc)   : %53.51
 📏 Çoğunluk Sınıfı Referansı (Baseline)   : %51.90
-Walk-Forward Ortalama Doğruluk            : %51.50
+Walk-Forward Ortalama Doğruluk: %51.66
 ```
 
-**Sorun Giderme (Bu Adım Çalışmazsa):**
-- **`ValueError: Target size ... must be the same as input size`:** Hedef vektörü olarak `train_df["up_day"].values.astype(np.float32)` kullandığınızdan emin olun. Değişkenler eksikse **`🔄 Yetiştir: Bölüm 5`** hücresini çalıştırın.
+*Test accuracy is 54.74% against a 51.90% majority-class baseline, and the 4-fold walk-forward average is 51.66%. The test set has only 422 predictions, so the 95% confidence interval around 54.74% is about ±4.8 points (roughly 50% to 59.5%): this result cannot be told apart from a coin toss or from the baseline.*
 
-## Bölüm 6 · Meydan Okumalar
+**Troubleshooting (if this step fails):**
+- **`ValueError: Target size ... must be the same as input size`:** Make sure you use `train_df["up_day"].values.astype(np.float32)` as the target vector. If variables are missing, run the **`🔄 Yetiştir: Bölüm 5`** cell.
 
-**Hedef:** Kurduğumuz sızıntısız değerlendirme hattı üzerinde farklı sembolleri, yeni özellikleri (`volume_change`), alternatif mimarileri (`GRU`, `TinyTransformer`) ve işlem maliyetli (`15 bps`) strateji testini denemek.
+## Part 6 · Challenges
 
-**Yetiştir Hücresi:** `🔄 Yetiştir: Bölüm 6 (Meydan okumalar için tüm değişkenleri hazırlar)`
+**Goal:** Use the leak-free evaluation pipeline we built to try other tickers, a new feature (`volume_change`), other architectures (`GRU`, `TinyTransformer`), and a strategy test with trading costs (`15 bps`).
 
-**Meydan Okumalar ve Çözüm İpuçları:**
+**Catch-up cell:** `🔄 Yetiştir: Bölüm 6 (Meydan okumalar için tüm değişkenleri hazırlar)` (*"Catch up: Part 6 — prepares every variable for the challenges"*)
 
-1. **Meydan Okuma 1 — Kendi Sembolünü Dene:** `load_prices("ASELS.IS")`, `load_prices("BTC-USD")` veya `load_prices("AAPL")` ile veriyi indirin. Geçersiz bir sembol (`load_prices("GECERSIZ_XYZ")`) verdiğinizde Türkçe `ValueError` mesajının nasıl yakalandığını görün.
-2. **Meydan Okuma 2 — İşlem Hacmi (`volume_change`) Özelliğini Ekle:** `cols_5 = FEATURE_COLS + ["volume_change"]` listesini `fit_scaler_on_train` fonksiyonuna vererek 5 özellikle modeli yeniden eğitin (`THYAO.IS` üzerinde test doğruluğu `%52.84` civarında çıkar).
-3. **Meydan Okuma 3 — `nn.LSTM` Yerine `nn.GRU` ve 15 Günlük Pencere:** `train_direction_classifier(..., window_size=15, model_cls=GRUModel)` çağrısıyla daha az parametreli `GRU` modelini deneyin (`Test Acc: %50.35`).
-4. **Meydan Okuma 4 (Bonus) — `TinyTransformerModel` ve İşlem Maliyetli Backtest:** `backtest_with_costs(test_rets, cls_res["y_pred"], cost_bps=15.0)` çağrısıyla her alım-satımda ödenen %0.15 komisyon+makas maliyetinin brüt strateji getirisini (`1.31x`) net `0.86x` seviyesine nasıl düşürdüğünü grafikte gözlemleyin!
+**Challenges and solution hints:**
 
-**Sorun Giderme (Bu Adım Çalışmazsa):**
-- **Kendi seçtiğiniz bir BIST sembolünde `yeterli geçmiş veri yok` hatası:** Yeni halka arz olmuş hisselerde 120 günden az veri bulunabilir; daha eski bir sembol seçin veya `min_rows` parametresini küçültün.
-- **Çözüm kodlarını görmek için:** Defterde her meydan okumanın altındaki **`💡 Çözüm`** hücresine çift tıklayarak kodu açabilir veya doğrudan çalıştırabilirsiniz.
+1. **Challenge 1 — Try your own ticker:** Load data with `load_prices("ASELS.IS")`, `load_prices("BTC-USD")` or `load_prices("AAPL")`. Pass an invalid ticker (`load_prices("GECERSIZ_XYZ")`) and see how the `ValueError` is caught.
+2. **Challenge 2 — Add the trading-volume feature (`volume_change`):** Pass `cols_5 = FEATURE_COLS + ["volume_change"]` to `fit_scaler_on_train` and retrain the model with five features (on `THYAO.IS` test accuracy comes out around `55.7%`; compare it with the ±4.8-point uncertainty from Part 5 before calling it an improvement).
+3. **Challenge 3 — `nn.GRU` instead of `nn.LSTM`, with a 15-day window:** Try the `GRU` model, which has fewer parameters, with `train_direction_classifier(..., window_size=15, model_cls=GRUModel)` (`Test Acc: 52.6%`).
+4. **Challenge 4 (Bonus) — `TinyTransformerModel` and a backtest with costs:** Call `backtest_with_costs(test_rets, cls_res["y_pred"], cost_bps=15.0)` and compare buy-and-hold with the strategy before and after a 0.15% commission-and-spread cost on every trade. On the THYAO test window the model is in the market only about one day in five and changes position just 29 times, so costs take little off: buy-and-hold ends at `0.99x`, the strategy at `1.24x` gross and `1.18x` net. Before believing it, ask why: one 22-month window, an accuracy indistinguishable from 50%, and a strategy that mostly sat in cash during a flat market. Rerun it with other seeds, tickers and walk-forward folds.
 
-## İleri Okuma ve Kaynaklar
+**Troubleshooting (if this step fails):**
+- **`yeterli geçmiş veri yok` ("not enough history") for a BIST ticker you picked:** Recently listed stocks can have fewer than 120 days of data. Pick an older ticker or lower the `min_rows` parameter.
+- **To see the solution code:** Double-click the **`💡 Çözüm`** ("Solution") cell under each challenge in the notebook to open the code, or simply run it.
 
-Atölyede öğrendiğimiz kavramları derinleştirmek için doğrulanmış temel kaynaklar:
+## Further Reading and Resources
 
-1. **PyTorch Resmi Dokümantasyonu ve Eğitimleri:**
-   - [PyTorch Tutorials — Learn the Basics](https://pytorch.org/tutorials/beginner/basics/intro.html): `Tensor`, `Dataset`, `DataLoader`, `nn.Module` ve eğitim döngüsü temelleri.
-   - [PyTorch `nn.LSTM` Resmi Referansı](https://pytorch.org/docs/stable/generated/torch.nn.LSTM.html): Giriş/çıkış tensör boyutları (`batch_first=True`) ve kapı denklemleri.
-   - [PyTorch `nn.BCEWithLogitsLoss` Referansı](https://pytorch.org/docs/stable/generated/torch.nn.BCEWithLogitsLoss.html): İkili sınıflandırmada sayısal kararlılık ve `sigmoid` birleşimi.
-2. **Zaman Serisi Doğrulaması (Walk-Forward) ve Veri Sızıntısı (Data Leakage):**
-   - [Scikit-Learn — TimeSeriesSplit](https://scikit-learn.org/stable/modules/cross_validation.html#time-series-split): Zaman serilerinde neden standart k-fold çapraz doğrulama kullanılamayacağının ve genişleyen pencere (walk-forward) doğrulamanın resmi açıklaması.
-   - [Scikit-Learn — Common Pitfalls and Recommended Practices (Data Leakage)](https://scikit-learn.org/stable/common_pitfalls.html): Ön-işleme (`StandardScaler`) adımlarında eğitim ve test verisi arasındaki sızıntıyı önleme rehberi.
-   - [Hyndman & Athanasopoulos — Forecasting: Principles and Practice (Evaluating Forecast Accuracy)](https://otexts.com/fpp3/accuracy.html): Saf referans modelleri (Naive forecast / random walk baseline) ve zaman serisi hata metrikleri üzerine standart akademik kaynak.
+Verified core resources to go deeper into what we covered:
 
-> **Son Hatırlatma:** Bu atölye ve rehber yalnızca eğitim amaçlıdır; yatırım tavsiyesi niteliği taşımaz.
+1. **Official PyTorch documentation and tutorials:**
+   - [PyTorch Tutorials — Learn the Basics](https://pytorch.org/tutorials/beginner/basics/intro.html): `Tensor`, `Dataset`, `DataLoader`, `nn.Module` and the training loop.
+   - [PyTorch `nn.LSTM` reference](https://pytorch.org/docs/stable/generated/torch.nn.LSTM.html): input and output tensor shapes (`batch_first=True`) and the gate equations.
+   - [PyTorch `nn.BCEWithLogitsLoss` reference](https://pytorch.org/docs/stable/generated/torch.nn.BCEWithLogitsLoss.html): numerical stability and the built-in `sigmoid` in binary classification.
+2. **Time-series validation (walk-forward) and data leakage:**
+   - [Scikit-Learn — TimeSeriesSplit](https://scikit-learn.org/stable/modules/cross_validation.html#time-series-split): the official explanation of why standard k-fold cross-validation does not work for time series, and of expanding-window (walk-forward) validation.
+   - [Scikit-Learn — Common Pitfalls and Recommended Practices (Data Leakage)](https://scikit-learn.org/stable/common_pitfalls.html): how to avoid leakage between training and test data in preprocessing steps such as `StandardScaler`.
+   - [Hyndman & Athanasopoulos — Forecasting: Principles and Practice (Evaluating Forecast Accuracy)](https://otexts.com/fpp3/accuracy.html): the standard reference on naive (random-walk) baselines and time-series error metrics.
+
+> **Final reminder:** This workshop and guide are for education only and are not investment advice.
