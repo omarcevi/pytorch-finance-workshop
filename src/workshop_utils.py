@@ -1046,6 +1046,140 @@ def check_todo_4(
     raise WorkshopCheckError(4, "the scaled values don't match a scaler fitted on train_df[FEATURE_COLS].", "fit_transform learns the mean and std on train; transform only applies them.")
 
 
+def check_todo_5(
+    train_ds: Dataset,
+    val_ds: Dataset,
+    train_loader: DataLoader,
+    val_loader: DataLoader,
+    x_train: np.ndarray,
+    x_val: np.ndarray,
+    window_size: int = 30,
+) -> None:
+    """TODO 5: 30-day sliding-window datasets wrapped in DataLoaders (train shuffled, validation in order)."""
+    for name, ds, x in (("train_ds", train_ds, x_train), ("val_ds", val_ds, x_val)):
+        if not isinstance(ds, Dataset) or len(ds) != len(x) - window_size:
+            got = len(ds) if isinstance(ds, Dataset) else type(ds).__name__
+            raise WorkshopCheckError(5, f"{name} has {got} windows; expected {len(x) - window_size}.", f"use SlidingWindowDataset(features, targets, window_size={window_size}).")
+    for name, loader in (("train_loader", train_loader), ("val_loader", val_loader)):
+        if not isinstance(loader, DataLoader):
+            raise WorkshopCheckError(5, f"{name} isn't a DataLoader yet.", "wrap each dataset: DataLoader(dataset, batch_size=BATCH_SIZE, ...).")
+    bx, _ = next(iter(DataLoader(train_loader.dataset, batch_size=train_loader.batch_size)))
+    expected_shape = (64, window_size, np.asarray(x_train).shape[1])
+    if tuple(bx.shape) != expected_shape:
+        raise WorkshopCheckError(5, f"a training batch has shape {tuple(bx.shape)}; expected {expected_shape}.", "use batch_size=BATCH_SIZE (64) and the 30-day windows.")
+    if not isinstance(train_loader.sampler, torch.utils.data.RandomSampler):
+        raise WorkshopCheckError(5, "train_loader doesn't shuffle its windows: shuffle=True is missing.", "use shuffle=True for train_loader (each window keeps its own time order).")
+    if not isinstance(val_loader.sampler, torch.utils.data.SequentialSampler):
+        raise WorkshopCheckError(5, "val_loader shuffles its windows: it needs shuffle=False.", "use shuffle=False for val_loader.")
+    print(f"✅ TODO 5 looks right: {len(train_ds)} training windows, batches of shape {expected_shape}.")
+
+
+def check_todo_6(model_cls: type[nn.Module]) -> None:
+    """TODO 6: forward() runs the LSTM, takes the last time step and returns one value per sample."""
+    with torch.random.fork_rng():
+        torch.manual_seed(0)
+        model = model_cls(input_dim=4, hidden_dim=8)
+        x = torch.randn(3, 30, 4)
+        with torch.no_grad():
+            out = model(x)
+            if not (hasattr(model, "lstm") and hasattr(model, "fc")):
+                raise WorkshopCheckError(6, "the model has no self.lstm or self.fc.", "keep the __init__ as it is and fill in forward().")
+            steps, _ = model.lstm(x)
+            expected = model.fc(steps[:, -1, :]).squeeze(-1)
+            first_step = model.fc(steps[:, 0, :]).squeeze(-1)
+    if not isinstance(out, torch.Tensor):
+        raise WorkshopCheckError(6, f"forward() returned {type(out).__name__}, not a tensor.", "return self.fc(...) from forward().")
+    if tuple(out.shape) == (3, 1):
+        raise WorkshopCheckError(6, "the output has shape (batch, 1) but the targets have shape (batch,): squeeze(-1) is missing.", "add squeeze(-1) at the end: self.fc(last_step).squeeze(-1).")
+    if out.shape == expected.shape and torch.allclose(out, expected, atol=1e-6):
+        print("✅ TODO 6 looks right: (batch, 30, 4) -> LSTM -> last time step -> Linear -> (batch,).")
+        return
+    if out.shape == first_step.shape and torch.allclose(out, first_step, atol=1e-6):
+        raise WorkshopCheckError(6, "forward() uses the first day of the window instead of the last time step.", "use the last time step out[:, -1, :].")
+    raise WorkshopCheckError(6, f"forward() returned shape {tuple(out.shape)} with unexpected values.", "out, _ = self.lstm(x); take the last time step out[:, -1, :]; pass it to self.fc and squeeze(-1).")
+
+
+def check_todo_7(
+    model: nn.Module,
+    train_loader: DataLoader,
+    train_losses: list[float],
+    epochs: int = 10,
+    lr: float = 0.001,
+    seed: int = 42,
+) -> None:
+    """TODO 7: the five-step training loop, compared with a reference run from the same seed."""
+    hint = "in each batch: optimizer.zero_grad() → pred = demo_model(bx) → loss = criterion(pred, by) → loss.backward() → optimizer.step()."
+    if len(train_losses) != epochs:
+        raise WorkshopCheckError(7, f"train_losses has {len(train_losses)} values; expected {epochs} (one per epoch).", hint)
+    model_cls = type(model)
+    dims = {"input_dim": model.lstm.input_size, "hidden_dim": model.lstm.hidden_size}
+    # fork_rng restores torch's global random state afterwards, so later cells give the same results.
+    with torch.random.fork_rng():
+        torch.manual_seed(seed)
+        fresh = model_cls(**dims)
+        unchanged = all(torch.equal(a, b) for a, b in zip(model.state_dict().values(), fresh.state_dict().values(), strict=True))
+        if unchanged:
+            raise WorkshopCheckError(7, "the weights never changed during training: optimizer.step() was never called.", "call optimizer.step() after loss.backward().")
+        torch.manual_seed(seed)
+        ref = model_cls(**dims)
+        optimizer = torch.optim.Adam(ref.parameters(), lr=lr)
+        criterion = nn.MSELoss()
+        ref_losses = []
+        for _ in range(epochs):
+            ref.train()
+            batch_losses = []
+            for bx, by in train_loader:
+                optimizer.zero_grad()
+                loss = criterion(ref(bx), by)
+                loss.backward()
+                optimizer.step()
+                batch_losses.append(loss.item())
+            ref_losses.append(float(np.mean(batch_losses)))
+    if not np.allclose(train_losses, ref_losses, rtol=1e-4, atol=1e-9):
+        raise WorkshopCheckError(7, "the losses don't match a correct training loop.", hint)
+    print(f"✅ TODO 7 looks right: train loss went from {train_losses[0]:.6f} to {train_losses[-1]:.6f}.")
+
+
+def check_todo_8(
+    lstm_mae: float,
+    naive_mae: float,
+    lstm_rmse: float,
+    naive_rmse: float,
+    actual_prices: np.ndarray,
+    predicted_prices: np.ndarray,
+    naive_prices: np.ndarray,
+) -> None:
+    """TODO 8: MAE and RMSE of the LSTM and of the naive baseline."""
+    actual = np.asarray(actual_prices, dtype=np.float64)
+    for name, pred, mae, rmse in (
+        ("lstm", np.asarray(predicted_prices, dtype=np.float64), lstm_mae, lstm_rmse),
+        ("naive", np.asarray(naive_prices, dtype=np.float64), naive_mae, naive_rmse),
+    ):
+        err = actual - pred
+        if not _close(mae, np.mean(np.abs(err))):
+            if _close(mae, np.mean(err)):
+                raise WorkshopCheckError(8, f"{name}_mae can be negative: without np.abs, errors of opposite sign cancel out.", "use np.abs on the errors before taking the mean.")
+            raise WorkshopCheckError(8, f"{name}_mae doesn't match the mean absolute error.", "MAE = np.mean(np.abs(actual_prices - prediction)).")
+        if not _close(rmse, np.sqrt(np.mean(err**2))):
+            if _close(rmse, np.mean(err**2)):
+                raise WorkshopCheckError(8, f"{name}_rmse is the mean squared error: np.sqrt is missing.", "take np.sqrt of the mean squared error.")
+            raise WorkshopCheckError(8, f"{name}_rmse doesn't match the root mean squared error.", "RMSE = np.sqrt(np.mean((actual_prices - prediction) ** 2)).")
+    print(f"✅ TODO 8 looks right: LSTM MAE {lstm_mae:.2f} vs naive MAE {naive_mae:.2f}.")
+
+
+def check_todo_9(cls_res: dict, test_df: pd.DataFrame, window_size: int = 30) -> None:
+    """TODO 9: train_direction_classifier evaluated on the test set's up_day targets."""
+    keys = ("test_acc", "test_bal_acc", "majority_acc", "y_true", "y_pred")
+    if not isinstance(cls_res, dict) or any(k not in cls_res for k in keys):
+        raise WorkshopCheckError(9, "cls_res isn't the dictionary train_direction_classifier returns.", "cls_res = train_direction_classifier(x_train, y_train_dir, x_val, y_val_dir, x_test, y_test_dir, ...).")
+    expected = test_df["up_day"].values.astype(np.float32)[window_size:]
+    if not _close(cls_res["y_true"], expected):
+        raise WorkshopCheckError(9, "cls_res wasn't evaluated on the test set's up_day targets.", "pass x_test and y_test_dir as the last two data arguments, with window_size=WINDOW_SIZE.")
+    if not 0.0 <= float(cls_res["test_acc"]) <= 1.0:
+        raise WorkshopCheckError(9, f"test_acc is {cls_res['test_acc']}, outside 0–1.", "use the cls_res returned by train_direction_classifier as it is.")
+    print(f"✅ TODO 9 looks right: test accuracy {cls_res['test_acc']:.2%} on {len(expected)} test days.")
+
+
 # --- 'Catch up' functions ----------------------------------------------------------------
 
 
