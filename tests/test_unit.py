@@ -1,9 +1,9 @@
-"""Birim testleri (ağ bağlantısı gerektirmez):
-- load_prices hata, boş tablo ve rate-limit (YFRateLimitError) yedekleme (fallback) davranışları
-- SlidingWindowDataset ve PriceWindowDataset boyut ve hedef sızıntısı (leakage) kontrolü
-- Kronolojik bölme ve StandardScaler'ın yalnızca train verisinde fit edilmesi
-- make_starter.py çözüm bloğu temizleme kontrolü
-- Her 'Yetiştir' (catch-up) hücresinin sıfır/temiz çekirdekte (fresh kernel) tek başına çalışması
+"""Unit tests (no network needed):
+- load_prices fallback behaviour on errors, empty tables and rate limits (YFRateLimitError)
+- SlidingWindowDataset and PriceWindowDataset shapes and target leakage
+- The chronological split and a StandardScaler fitted on train only
+- make_starter.py solution-block removal
+- Every 'catch up' cell works on its own in a fresh process, and so does the rest of its part after it
 """
 
 from __future__ import annotations
@@ -35,19 +35,19 @@ from workshop_utils import (
     load_prices,
 )
 
-# --- 1. load_prices Fallback Testleri (Ağsız / Mock) -------------------------------------
+# --- 1. load_prices fallback tests (no network / mocked) ---------------------------------
 
 
 def test_load_prices_fallback_on_exception(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """yfinance genel bir istisna fırlattığında yedek (snapshot) veriye düşmelidir."""
+    """When yfinance raises a generic exception, load_prices falls back to the snapshot."""
     monkeypatch.delenv("WORKSHOP_FORCE_FALLBACK", raising=False)
-    with patch("workshop_utils.yf.download", side_effect=RuntimeError("Ağ bağlantı hatası")):
+    with patch("workshop_utils.yf.download", side_effect=RuntimeError("Network error")):
         df = load_prices("THYAO.IS", force_fallback=False)
     captured = capsys.readouterr().out
-    assert "Yedek veri (snapshot) yükleniyor" in captured
+    assert "Loading the snapshot data" in captured
     assert not df.empty
     assert list(df.columns) == ["Open", "High", "Low", "Close", "Volume"]
 
@@ -56,12 +56,12 @@ def test_load_prices_fallback_on_empty_dataframe(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """yfinance boş DataFrame döndürdüğünde yedek veriye düşmelidir."""
+    """When yfinance returns an empty DataFrame, load_prices falls back to the snapshot."""
     monkeypatch.delenv("WORKSHOP_FORCE_FALLBACK", raising=False)
     with patch("workshop_utils.yf.download", return_value=pd.DataFrame()):
         df = load_prices("ASELS.IS", force_fallback=False)
     captured = capsys.readouterr().out
-    assert "Yedek veri (snapshot) yükleniyor" in captured
+    assert "Loading the snapshot data" in captured
     assert len(df) > 1000
 
 
@@ -69,7 +69,7 @@ def test_load_prices_fallback_on_rate_limit_error(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """yfinance YFRateLimitError fırlattığında veya shared._ERRORS kaydı bıraktığında yedek veriye düşmelidir."""
+    """On YFRateLimitError, or when yfinance leaves an entry in shared._ERRORS, load_prices falls back to the snapshot."""
     monkeypatch.delenv("WORKSHOP_FORCE_FALLBACK", raising=False)
     rate_exc = yf.exceptions.YFRateLimitError()
     with patch("workshop_utils.yf.download", side_effect=rate_exc):
@@ -78,7 +78,7 @@ def test_load_prices_fallback_on_rate_limit_error(
     assert "YFRateLimitError" in captured
     assert len(df) > 1000
 
-    # Ayrıca yf.download'un kendi içinde hatayı yutup shared._ERRORS'a yazdığı gerçek davranışı da test et
+    # Also test yf.download's real behaviour of swallowing the error and writing it to shared._ERRORS
     def _fake_swallowed_rate_limit(*args, **kwargs):
         yf.shared._ERRORS["AAPL"] = "YFRateLimitError('Too Many Requests.')"
         return pd.DataFrame()
@@ -89,20 +89,20 @@ def test_load_prices_fallback_on_rate_limit_error(
 
 
 def test_load_prices_invalid_ticker_and_short_history() -> None:
-    """Geçersiz sembol ve çok kısa geçmiş için anlaşılır Türkçe ValueError fırlatılmalıdır."""
-    with pytest.raises(ValueError, match="sembolü için"):
-        load_prices("OLMAYAN_SEMBOL_999", force_fallback=True)
+    """An invalid ticker and a very short history raise a clear ValueError."""
+    with pytest.raises(ValueError, match="Could not get data for"):
+        load_prices("NO_SUCH_TICKER_999", force_fallback=True)
 
-    with pytest.raises(ValueError, match="yeterli geçmiş veri yok"):
+    with pytest.raises(ValueError, match="Not enough history"):
         load_prices("THYAO.IS", start="2026-10-01", end="2026-11-15", force_fallback=True, min_rows=120)
 
 
-# --- 2. SlidingWindowDataset Boyut ve Hedef Sızıntısı Testleri ---------------------------
+# --- 2. SlidingWindowDataset shape and target-leakage tests ------------------------------
 
 
 def test_sliding_window_shapes_and_no_target_leakage() -> None:
-    """SlidingWindowDataset doğru boyutları üretmeli ve hedef gün giriş penceresine sızmamalıdır."""
-    # Her günün değeri kendi zaman indeksi (0, 1, 2, ..., 99) olsun
+    """SlidingWindowDataset produces the right shapes and the target day never leaks into the input window."""
+    # Each day's value is its own time index (0, 1, 2, ..., 99)
     n, f, w = 100, 4, 30
     timeline = np.arange(n, dtype=np.float32)
     features = np.stack([timeline + k * 1000 for k in range(f)], axis=1)
@@ -115,18 +115,18 @@ def test_sliding_window_shapes_and_no_target_leakage() -> None:
         x_win, y_target = ds[idx]
         assert x_win.shape == (w, f)
         assert y_target.shape == ()
-        # Giriş penceresindeki ilk özellik sütunu [idx, idx+1, ..., idx+w-1] günlerini içerir
+        # The first feature column of the input window holds days [idx, idx+1, ..., idx+w-1]
         window_days = x_win[:, 0].numpy()
         target_day = float(y_target.item())
         assert np.allclose(window_days, np.arange(idx, idx + w, dtype=np.float32))
         assert target_day == float(idx + w)
-        # Hedef gün kesinlikle penceredeki tüm günlerden büyük olmalıdır (gelecek sızıntısı yok)
+        # The target day must be later than every day in the window (no leakage from the future)
         assert target_day > float(window_days.max())
         assert target_day not in set(window_days.tolist())
 
 
 def test_price_window_dataset_no_leakage() -> None:
-    """PriceWindowDataset hedef fiyatı pencere dışındaki (idx + W) günden almalıdır."""
+    """PriceWindowDataset takes the target price from the day outside the window (idx + W)."""
     prices = np.arange(10.0, 110.0, dtype=np.float32)
     w = 30
     ds = PriceWindowDataset(prices, window_size=w)
@@ -140,11 +140,11 @@ def test_price_window_dataset_no_leakage() -> None:
     assert np.isclose(reconstructed_target, prices[5 + w], atol=1e-4)
 
 
-# --- 3. Kronolojik Bölme ve Scaler Sızıntısızlık Testleri -------------------------------
+# --- 3. Chronological split and leak-free scaler tests -----------------------------------
 
 
 def test_chronological_split_and_train_only_scaler() -> None:
-    """Veri bölme kesin kronolojik olmalı ve StandardScaler yalnızca train üzerinde fit edilmelidir."""
+    """The split is strictly chronological and the StandardScaler is fitted on train only."""
     df = load_prices("THYAO.IS", force_fallback=True)
     feat_df = build_features(df)
     train_df, val_df, test_df = chronological_split(feat_df, train_ratio=0.70, val_ratio=0.15)
@@ -156,8 +156,8 @@ def test_chronological_split_and_train_only_scaler() -> None:
     assert train_df.index.max() < val_df.index.min()
     assert val_df.index.max() < test_df.index.min()
 
-    # Test setine kasıtlı olarak aşırı büyük bir değer ekleyelim; scaler yalnızca train'e fit edildiyse
-    # scaler.mean_ ve scaler.scale_ bundan KESİNLİKLE etkilenmemelidir!
+    # Add a huge value to the test set on purpose; if the scaler was fitted on train only,
+    # scaler.mean_ and scaler.scale_ must NOT be affected by it at all!
     test_tampered = test_df.copy()
     test_tampered[FEATURE_COLS] = test_tampered[FEATURE_COLS] + 99999.0
 
@@ -171,15 +171,15 @@ def test_chronological_split_and_train_only_scaler() -> None:
     assert not np.allclose(x_val.mean(axis=0), 0.0, atol=1e-3)
 
 
-# --- 4. make_starter.py Çözüm Bloğu Temizleme Testleri ----------------------------------
+# --- 4. make_starter.py solution-block removal tests -------------------------------------
 
 
 def test_make_starter_strips_all_solution_blocks() -> None:
-    """make_starter.py tüm # BEGIN SOLUTION bloklarını kaldırmalı ve çözüm kodu bırakmamalıdır."""
+    """make_starter.py removes every # BEGIN SOLUTION block and leaves no solution code behind."""
     sample_code = (
         "x = 1\n"
         "if x > 0:\n"
-        "    # BEGIN SOLUTION: y değerini hesaplayın\n"
+        "    # BEGIN SOLUTION: compute the y value\n"
         "    secret_solution_var = x + 41\n"
         "    # END SOLUTION\n"
         "print(x)"
@@ -189,8 +189,8 @@ def test_make_starter_strips_all_solution_blocks() -> None:
     assert "secret_solution_var" not in stripped
     assert "# BEGIN SOLUTION" not in stripped
     assert "# END SOLUTION" not in stripped
-    assert "    # TODO: y değerini hesaplayın" in stripped
-    assert '    raise NotImplementedError("TODO: y değerini hesaplayın")' in stripped
+    assert "    # TODO: compute the y value" in stripped
+    assert '    raise NotImplementedError("TODO: compute the y value")' in stripped
 
     sol_path = ROOT / "notebooks" / "workshop_solution.ipynb"
     sta_path = ROOT / "notebooks" / "workshop_starter.ipynb"
@@ -205,7 +205,7 @@ def test_make_starter_strips_all_solution_blocks() -> None:
     assert "# BEGIN SOLUTION" not in sta_raw
     assert "# END SOLUTION" not in sta_raw
 
-    # Çözüm defterindeki her BEGIN SOLUTION bloğunun starter defterinde bir TODO hücresine karşılık geldiğini doğrula
+    # Every BEGIN SOLUTION block in the solution notebook maps to a TODO cell in the starter notebook
     sol_todo_cells = [
         c["id"] for c in sol_nb["cells"] if c["cell_type"] == "code" and "# BEGIN SOLUTION" in "".join(c["source"])
     ]
@@ -215,17 +215,17 @@ def test_make_starter_strips_all_solution_blocks() -> None:
     assert sol_todo_cells == sta_todo_cells
 
 
-# --- 5. 'Yetiştir' Hücrelerinin Sıfır Çekirdekte (Fresh Kernel) Çalışma Testi ------------
+# --- 5. 'Catch up' cells in a fresh kernel -----------------------------------------------
 
 
-def test_every_yetistir_cell_works_in_fresh_process() -> None:
-    """Defterdeki her 'Yetiştir' (catch-up) hücresi sıfırdan başlayan temiz bir Python sürecinde hatasız çalışmalıdır."""
+def test_every_catch_up_cell_works_in_fresh_process() -> None:
+    """Every 'catch up' cell in the notebook runs without errors in a brand-new Python process."""
     sol_path = ROOT / "notebooks" / "workshop_solution.ipynb"
     sol_nb = json.loads(sol_path.read_text(encoding="utf-8"))
     catchup_cells = [
-        c for c in sol_nb["cells"] if c["cell_type"] == "code" and "Yetiştir:" in "".join(c["source"])
+        c for c in sol_nb["cells"] if c["cell_type"] == "code" and "Catch up:" in "".join(c["source"])
     ]
-    assert len(catchup_cells) == 6, f"6 Yetiştir hücresi beklendi, {len(catchup_cells)} bulundu."
+    assert len(catchup_cells) == 6, f"Expected 6 catch-up cells, found {len(catchup_cells)}."
 
     env = {**subprocess.os.environ, "WORKSHOP_FORCE_FALLBACK": "1"}
     for cell in catchup_cells:
@@ -239,14 +239,14 @@ def test_every_yetistir_cell_works_in_fresh_process() -> None:
             timeout=60,
             check=False,
         )
-        assert proc.returncode == 0, f"{cell['id']} Yetiştir hücresi başarısız oldu:\n{proc.stderr}"
+        assert proc.returncode == 0, f"Catch-up cell {cell['id']} failed:\n{proc.stderr}"
         assert "✅" in proc.stdout
 
 
-def test_every_yetistir_cell_restores_its_section() -> None:
-    """Sıfırlanmış çalışma zamanında Yetiştir hücresinden sonra bölümün kalan çözüm hücreleri de çalışmalıdır.
+def test_every_catch_up_cell_restores_its_section() -> None:
+    """In a reset runtime, the rest of a part's solution cells must also run after its catch-up cell.
 
-    (Yetiştir hücresi tek başına çalışıp np/plt/torch gibi isimleri yüklemezse bir sonraki hücre NameError verir.)
+    (If a catch-up cell runs on its own but does not load names such as np/plt/torch, the next cell raises NameError.)
     """
     sol_nb = json.loads((ROOT / "notebooks" / "workshop_solution.ipynb").read_text(encoding="utf-8"))
     code_cells = [c for c in sol_nb["cells"] if c["cell_type"] == "code"]
@@ -268,4 +268,4 @@ def test_every_yetistir_cell_restores_its_section() -> None:
             check=False,
         )
         ids = [c["id"] for c in section]
-        assert proc.returncode == 0, f"Yetiştir sonrası bölüm çalışmadı ({ids}):\n{proc.stderr[-2000:]}"
+        assert proc.returncode == 0, f"The part did not run after its catch-up cell ({ids}):\n{proc.stderr[-2000:]}"
