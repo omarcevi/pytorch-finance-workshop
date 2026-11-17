@@ -74,7 +74,7 @@ Doğrulanan kritik davranışlar:
 - **Koşullar:** Yahoo Kullanım Koşulları (Terms of Service), Yahoo Finance piyasa verilerinin herkese açık bir depoda (public GitHub repo) yeniden dağıtılmasına izin vermez.
 - **Uygulanan Çözüm:**
   1. `data/*.csv` dosyaları `.gitignore` içine eklenerek git geçmişinin dışında tutulmuştur.
-  2. `src/workshop_utils.py` içinde tek bir sabit (`SNAPSHOT_BASE_URL`) tanımlanmıştır; eğitmen katılımcılarla paylaşacağı özel bulut/bucket adresini bu sabit (veya `WORKSHOP_SNAPSHOT_URL` ortam değişkeni) üzerinden sağlar.
+  2. `src/workshop_utils.py` içinde tek bir sabit (`SNAPSHOT_BASE_URL = "https://gist.githubusercontent.com/omarcevi/ac2e894a14dd4d068a3baa9935631ec5/raw"`) tanımlanmıştır; veriler herkese açık depoya eklenmek yerine yalnızca bağlantı ile erişilebilen gizli (secret/unlisted) bir GitHub Gist (`https://gist.github.com/omarcevi/ac2e894a14dd4d068a3baa9935631ec5`) üzerinde barındırılır.
   3. `load_prices` sırasıyla:
      - Önce canlı `yfinance` indirmesini dener,
      - Hata, boş tablo veya rate-limit durumunda Türkçe bilgi mesajı yazdırarak önce yerel `data/{ticker}.csv` önbelleğine, ardından `SNAPSHOT_BASE_URL` adresine, en son olarak da tamamen çevrimdışı (offline) temiz bir Colab çalışma zamanında bile çalışmayı garanti eden kalibre edilmiş deterministik çevrimdışı yedek üreticiye başvurur.

@@ -35,7 +35,7 @@ MIN_HISTORY_ROWS: int = 120
 # Katılımcılar için yedek snapshot verisi tek bir sabit URL üzerinden veya yerel data/ klasöründen okunur.
 SNAPSHOT_BASE_URL: str = os.environ.get(
     "WORKSHOP_SNAPSHOT_URL",
-    "https://storage.googleapis.com/omarcevi-workshop-data/pytorch-finance-2026",
+    "https://gist.githubusercontent.com/omarcevi/ac2e894a14dd4d068a3baa9935631ec5/raw",
 )
 
 FEATURE_COLS: list[str] = ["log_return", "roll_mean_5", "roll_std_10", "rsi_14"]
