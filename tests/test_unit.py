@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -189,8 +190,8 @@ def test_make_starter_strips_all_solution_blocks() -> None:
     assert "secret_solution_var" not in stripped
     assert "# BEGIN SOLUTION" not in stripped
     assert "# END SOLUTION" not in stripped
-    assert "    # TODO: compute the y value" in stripped
-    assert '    raise NotImplementedError("TODO: compute the y value")' in stripped
+    assert "    # TODO 1: compute the y value" in stripped
+    assert '    raise NotImplementedError("TODO 1: compute the y value")' in stripped
 
     sol_path = ROOT / "notebooks" / "workshop_solution.ipynb"
     sta_path = ROOT / "notebooks" / "workshop_starter.ipynb"
@@ -210,9 +211,43 @@ def test_make_starter_strips_all_solution_blocks() -> None:
         c["id"] for c in sol_nb["cells"] if c["cell_type"] == "code" and "# BEGIN SOLUTION" in "".join(c["source"])
     ]
     sta_todo_cells = [
-        c["id"] for c in sta_nb["cells"] if c["cell_type"] == "code" and "NotImplementedError(\"TODO:" in "".join(c["source"])
+        c["id"] for c in sta_nb["cells"] if c["cell_type"] == "code" and re.search(r'NotImplementedError\("TODO \d+:', "".join(c["source"]))
     ]
     assert sol_todo_cells == sta_todo_cells
+
+
+def test_make_starter_adds_help_cells() -> None:
+    """Each TODO cell is followed by a collapsed hint (when the solution cell has one) and a collapsed solution."""
+
+    def code(cell_id: str, source: str, hint: str | None = None) -> dict:
+        meta = {"workshop": {"hint": hint}} if hint else {}
+        return {"cell_type": "code", "id": cell_id, "metadata": meta, "outputs": [], "execution_count": None, "source": source}
+
+    solution_nb = {
+        "cells": [
+            {"cell_type": "markdown", "id": "intro", "metadata": {}, "source": "# Title"},
+            code("first", "x = 1\n# BEGIN SOLUTION: compute the y value\nsecret_solution_var = x + 41\n# END SOLUTION\nprint(x)", hint="use x + 41"),
+            code("second", "# BEGIN SOLUTION: double it\nz = 2 * secret_solution_var\n# END SOLUTION"),
+        ],
+        "metadata": {},
+        "nbformat": 4,
+        "nbformat_minor": 5,
+    }
+    starter, count = convert_notebook(solution_nb)
+    assert count == 2
+    ids = [c["id"] for c in starter["cells"]]
+    assert ids == ["intro", "first", "first-help", "second", "second-help"]
+
+    help_1 = "".join(starter["cells"][2]["source"])
+    assert starter["cells"][2]["cell_type"] == "markdown"
+    for text in ("💡 Hint", "use x + 41", "👀 Show the solution", "secret_solution_var = x + 41"):
+        assert text in help_1
+    assert "\n```python\n" in help_1
+
+    assert 'raise NotImplementedError("TODO 2: double it")' in "".join(starter["cells"][3]["source"])
+    help_2 = "".join(starter["cells"][4]["source"])
+    assert "💡 Hint" not in help_2
+    assert "z = 2 * secret_solution_var" in help_2
 
 
 # --- 5. 'Catch up' cells in a fresh kernel -----------------------------------------------

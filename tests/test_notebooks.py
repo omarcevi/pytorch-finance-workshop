@@ -85,8 +85,8 @@ def test_starter_notebook_runs_up_to_first_todo(monkeypatch: pytest.MonkeyPatch)
         source = "".join(cell["source"])
         # A simple stand-in for IPython's display()
         ns.setdefault("display", lambda *a, **kw: None)
-        if "NotImplementedError(\"TODO:" in source:
-            with pytest.raises(NotImplementedError, match="TODO:"):
+        if re.search(r'NotImplementedError\("TODO \d+:', source):
+            with pytest.raises(NotImplementedError, match=r"TODO \d+:"):
                 exec(compile(source, f"<{cell['id']}>", "exec"), ns)  # noqa: S102
             hit_first_todo = True
             break
