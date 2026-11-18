@@ -14,7 +14,7 @@
 ### Morning (18 November 2026, 09:00–12:00)
 - [ ] **Test `yfinance` from Colab:** Open a clean Google Colab CPU runtime and test `load_prices("THYAO.IS")` both through live `yfinance` and with `force_fallback=True`.
 - [ ] **Check the snapshot (`SNAPSHOT_BASE_URL`):** Confirm that the `SNAPSHOT_BASE_URL` address in `src/workshop_utils.py` (`https://gist.githubusercontent.com/omarcevi/ac2e894a14dd4d068a3baa9935631ec5/raw` — secret GitHub Gist: `https://gist.github.com/omarcevi/ac2e894a14dd4d068a3baa9935631ec5`) is reachable; when 40 students in DMF-214 connect to Yahoo Finance at the same time, hitting the rate limit (`YFRateLimitError`) is very likely.
-- [ ] **Short link and QR code:** Check the short link (e.g. `omarcevi.dev/w/pytorch-finans` / `bit.ly/isik-pytorch-2026`) for the starter notebook (`workshop_starter.ipynb`) Colab link and the guide page (`https://omarcevi.dev/workshops/pytorch-finance-workshop/`), and the large QR code for the first slide.
+- [ ] **Short link and QR code:** Check that the short link `omarcevi.dev/w/pytorch-finans` opens the starter notebook (`workshop_starter.ipynb`) in Colab, check and the guide page (`https://omarcevi.dev/workshops/pytorch-finance-workshop/`), and the large QR code for the first slide.
 - [ ] **Backup tab:** Keep the `workshop_solution.ipynb` notebook, **already run with all outputs ready**, open in a second browser tab.
 - [ ] **Offline local backup (`requirements.txt`):** In case of a general outage of Google Colab or the campus internet, have a local Jupyter environment installed with `pip install -r requirements.txt` and the `data/*.csv` files ready on your laptop.
 
