@@ -93,8 +93,8 @@ def create_solution_notebook() -> dict:
             """[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/omarcevi/pytorch-finance-workshop/blob/main/notebooks/workshop_solution.ipynb)
 
 # Bringing AI to Financial Data (Solution Notebook)
-**Işık IEEE Computer Society — PyTorch Workshop**
-📍 Işık University Şile Campus, DMF-214 · 🗓️ Wednesday 18 November 2026, 16:30–18:45
+Made for the **Işık IEEE Computer Society PyTorch Workshop**.
+
 🔗 **Step-by-step guide:** [omarcevi.dev/workshops/pytorch-finance-workshop](https://omarcevi.dev/workshops/pytorch-finance-workshop/)
 
 > ⚠️ **Important (Not Investment Advice):** All code, models and analysis in this workshop are for **machine learning and PyTorch education** only. Nothing here is investment advice, and these models **must not** be used for real trading decisions.
@@ -167,7 +167,7 @@ print(f"PyTorch version: {{torch.__version__}} | Device: CPU")""",
             "sec0-md",
             """---
 ## Part 0 · Intro: Could We Make Money with This Chart?
-*⏱️ Live session: 16:30–16:40*
+*⏱️ About 10 minutes*
 
 Search the web for *"stock price prediction with LSTM"* and you will almost always find a chart like the one below: the blue line is the actual price, the red dashed line is the AI model's prediction. The two lines sit almost on top of each other!
 
@@ -203,7 +203,7 @@ except Exception:
             "sec1-md",
             """---
 ## Part 1 · Setup and Data
-*⏱️ Live session: 16:40–16:55*
+*⏱️ About 15 minutes*
 
 In financial time series each trading day is summarised by five numbers (**OHLCV**): **O**pen, **H**igh (the day's highest price), **L**ow (the day's lowest price), **C**lose and **V**olume (trading volume). Companies pay dividends and split their shares over time, so instead of raw prices we use prices adjusted for dividends and splits (**auto-adjusted**), so that no artificial price drops show up in the past.
 
@@ -250,7 +250,7 @@ plt.show()""",
             "sec2-md",
             """---
 ## Part 2 · Cleaning, Features and Data Leakage
-*⏱️ Live session: 16:55–17:15*
+*⏱️ About 20 minutes*
 
 The exchange is closed at weekends and on public holidays; and because raw price series rise over time they are not **stationary** (6 TL in 2015 and 300 TL in 2026 are not on the same scale). That is why we build models not on raw prices but on scale-free features such as the **log return** ($r_t = \\ln(P_t / P_{t-1})$), a moving average, volatility and RSI.""",
         ),
@@ -332,7 +332,7 @@ print(f"Test mean           : {x_test.mean(axis=0).round(4)}")""",
             "sec3-md",
             """---
 ## Part 3 · PyTorch Basics: Tensor, Dataset and LSTM
-*⏱️ Live session: 17:15–17:35*
+*⏱️ About 20 minutes*
 
 PyTorch's basic building block is `torch.Tensor` (like a NumPy array, but with automatic differentiation and GPU/CPU acceleration). An LSTM expects its input as a 3-D tensor of shape **`(batch_size, seq_len, num_features)`** (number of samples, window length, number of features).""",
         ),
@@ -460,7 +460,6 @@ plt.show()""",
             "break-md",
             """---
 ## ☕ Break (10 minutes)
-*⏱️ Live session: 17:35–17:45*
 
 Grab your tea or coffee! After the break we will produce the **"perfect" price prediction chart** from Part 0 and reveal the surprise behind it.""",
         ),
@@ -469,7 +468,7 @@ Grab your tea or coffee! After the break we will produce the **"perfect" price p
             "sec4-md",
             """---
 ## Part 4 · Price Prediction and the Surprise
-*⏱️ Live session: 17:45–18:05*
+*⏱️ About 20 minutes*
 
 Now let's do what many online tutorials do: give the LSTM the **close prices** of the last 30 days and have it predict **tomorrow's close (TL)**.
 
@@ -553,7 +552,7 @@ plt.show()""",
             "sec5-md",
             """---
 ## Part 5 · The Right Setup: Direction Classification on Returns
-*⏱️ Live session: 18:05–18:25*
+*⏱️ About 20 minutes*
 
 To escape the copy-yesterday trap we must define the problem correctly:
 1. **Input:** stationary return and technical features (`log_return`, `roll_mean_5`, `roll_std_10`, `rsi_14`).
@@ -632,7 +631,7 @@ plt.show()""",
             "sec6-md",
             """---
 ## Part 6 · Challenges
-*⏱️ Live session: 18:25–18:40*
+*⏱️ About 15 minutes*
 
 Your turn! Try the challenges below at your own pace. Each has a hint and a collapsed (**Show solution**) cell underneath.""",
         ),
@@ -753,7 +752,7 @@ plt.show()""",
             "sec7-md",
             """---
 ## Part 7 · Wrap-up
-*⏱️ Live session: 18:40–18:45*
+*⏱️ About 5 minutes*
 
 ### Three takeaways
 1. **Always compare with a naive baseline:** a deep learning model that can't beat "tomorrow = today", however complex, is just repeating yesterday's price.
