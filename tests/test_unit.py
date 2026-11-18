@@ -314,6 +314,16 @@ def test_setup_replaces_an_outdated_workshop_utils(tmp_path: Path) -> None:
     assert "setup ok" in proc.stdout
 
 
+def test_notebooks_have_no_live_session_details() -> None:
+    """The notebooks also serve self-paced learners, so they give durations, not the session's venue, date or clock times."""
+    for name in ("workshop_solution.ipynb", "workshop_starter.ipynb"):
+        nb = json.loads((ROOT / "notebooks" / name).read_text(encoding="utf-8"))
+        text = "\n".join("".join(c["source"]) for c in nb["cells"] if c["cell_type"] == "markdown")
+        for detail in ("DMF-214", "Şile", "November 2026", "Live session"):
+            assert detail not in text, f"{name} still mentions {detail!r}"
+        assert not re.search(r"\b\d{1,2}:\d{2}\s*[–-]\s*\d{1,2}:\d{2}\b", text), f"{name} still shows clock times"
+
+
 def test_ci_runs_every_test_file() -> None:
     """CI runs every tests/test_*.py file, so each one gates pull requests."""
     ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
