@@ -198,7 +198,8 @@ def _train(loader: DataLoader, epochs: int, variant: str, val_loader: DataLoader
             if variant not in ("zero_grad_after_step", "no_zero_grad"):
                 optimizer.zero_grad()
             loss = criterion(model(bx), by)
-            loss.backward()
+            if variant != "no_backward":
+                loss.backward()
             if variant != "no_step":
                 optimizer.step()
             if variant == "zero_grad_after_step":
@@ -237,6 +238,11 @@ def test_check_todo_7(state: dict, capsys: pytest.CaptureFixture[str]) -> None:
 
     model, losses = _train(loader, 2, "no_step")
     with pytest.raises(WorkshopCheckError, match="optimizer.step"):
+        check_todo_7(model, loader, losses, epochs=2)
+
+    # Without loss.backward() the grads stay None, Adam skips every weight, and the weights never change either.
+    model, losses = _train(loader, 2, "no_backward")
+    with pytest.raises(WorkshopCheckError, match=r"loss\.backward"):
         check_todo_7(model, loader, losses, epochs=2)
 
 

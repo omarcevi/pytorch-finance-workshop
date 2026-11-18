@@ -1123,7 +1123,11 @@ def check_todo_7(
         fresh = model_cls(**dims)
         unchanged = all(torch.equal(a, b) for a, b in zip(model.state_dict().values(), fresh.state_dict().values(), strict=True))
         if unchanged:
-            raise WorkshopCheckError(7, "the weights never changed during training: optimizer.step() was never called.", "call optimizer.step() after loss.backward().")
+            raise WorkshopCheckError(
+                7,
+                "the weights never changed during training: each batch needs loss.backward() and then optimizer.step().",
+                "call loss.backward() to compute the gradients, then optimizer.step() to update the weights.",
+            )
         torch.manual_seed(seed)
         ref = model_cls(**dims)
         optimizer = torch.optim.Adam(ref.parameters(), lr=lr)

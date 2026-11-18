@@ -23,6 +23,7 @@ SOLUTION_BLOCK_RE = re.compile(
     r"^[ \t]*# END SOLUTION[ \t]*$",
     re.MULTILINE | re.DOTALL,
 )
+SOLUTION_MARKER_LINE_RE = re.compile(r"^[ \t]*# (?:BEGIN SOLUTION[^\n]*|END SOLUTION[ \t]*)\n", re.MULTILINE)
 
 
 def strip_solution_blocks(source_text: str, start: int = 1) -> tuple[str, int]:
@@ -60,9 +61,16 @@ def _help_cell(cell: dict, solution_text: str) -> dict:
     hint = cell.get("metadata", {}).get("workshop", {}).get("hint")
     if hint:
         parts.append(f"<details><summary>💡 Hint</summary>\n\n{hint}\n\n</details>")
-    bodies = [textwrap.dedent(m.group("body")).rstrip("\n") for m in SOLUTION_BLOCK_RE.finditer(solution_text)]
-    code = "\n\n".join(bodies)
-    parts.append(f"<details><summary>👀 Show the solution</summary>\n\n```python\n{code}\n```\n\n</details>")
+    blocks = list(SOLUTION_BLOCK_RE.finditer(solution_text))
+    if any(m.group("indent") for m in blocks):
+        # Code inside a method or loop would lose its indentation when pasted over the TODO lines,
+        # so show the whole solved cell instead: it starts at column 0 and pastes as is.
+        code = SOLUTION_MARKER_LINE_RE.sub("", solution_text).rstrip("\n")
+        note = "Replace the whole cell with this code (click in the cell, select all with Ctrl+A or ⌘A, then paste):\n\n"
+    else:
+        code = "\n\n".join(textwrap.dedent(m.group("body")).rstrip("\n") for m in blocks)
+        note = ""
+    parts.append(f"<details><summary>👀 Show the solution</summary>\n\n{note}```python\n{code}\n```\n\n</details>")
     return {"cell_type": "markdown", "id": f"{cell['id']}-help", "metadata": {}, "source": _to_source_lines("\n\n".join(parts))}
 
 

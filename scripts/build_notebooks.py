@@ -54,11 +54,15 @@ SETUP_BOOTSTRAP = """import pathlib, sys, urllib.request
 for _p in [pathlib.Path("src"), pathlib.Path("../src"), pathlib.Path("/content/pytorch-finance-workshop/src")]:
     if (_p / "workshop_utils.py").exists() and str(_p.resolve()) not in sys.path:
         sys.path.insert(0, str(_p.resolve()))
-if not any((pathlib.Path(p) / "workshop_utils.py").exists() for p in sys.path + ["."]):
+# A copy downloaded before an update (no setup_notebook yet) is replaced, and any import of it is forgotten.
+_local = pathlib.Path("workshop_utils.py")
+_outdated = _local.exists() and "def setup_notebook" not in _local.read_text(encoding="utf-8")
+if _outdated or not any((pathlib.Path(p) / "workshop_utils.py").exists() for p in sys.path + ["."]):
     urllib.request.urlretrieve(
         "https://raw.githubusercontent.com/omarcevi/pytorch-finance-workshop/main/src/workshop_utils.py",
         "workshop_utils.py",
-    )"""
+    )
+    sys.modules.pop("workshop_utils", None)"""
 
 CHECK_IMPORTS = """from workshop_utils import (
     check_todo_1, check_todo_2, check_todo_3, check_todo_4, check_todo_5,

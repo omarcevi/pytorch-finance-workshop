@@ -265,6 +265,62 @@ def test_make_starter_adds_help_cells() -> None:
     assert "z = 2 * secret_solution_var" in help_2
 
 
+def test_pasting_each_shown_solution_restores_the_solution_cell() -> None:
+    """Pasting the code from '👀 Show the solution' as its help cell says gives back the solution cell exactly.
+
+    Solutions that sit inside a method or a loop (TODO 6, 7) would lose their indentation if pasted over the
+    TODO lines, so their help cell shows the whole cell and says to replace the whole cell.
+    """
+    sol_nb = json.loads((ROOT / "notebooks" / "workshop_solution.ipynb").read_text(encoding="utf-8"))
+    sta_nb = json.loads((ROOT / "notebooks" / "workshop_starter.ipynb").read_text(encoding="utf-8"))
+    solutions = {c["id"]: "".join(c["source"]) for c in sol_nb["cells"]}
+    starter = {c["id"]: "".join(c["source"]) for c in sta_nb["cells"]}
+    help_ids = [cid for cid in starter if cid.endswith("-help")]
+    assert len(help_ids) == 9
+
+    for help_id in help_ids:
+        cell_id = help_id.removesuffix("-help")
+        help_text = starter[help_id]
+        code = re.search(r"👀 Show the solution</summary>.*?```python\n(.*?)\n```", help_text, re.DOTALL).group(1)
+        if "Replace the whole cell" in help_text:
+            pasted = code
+        else:
+            todo_lines = re.compile(r"^[ \t]*# TODO \d+:[^\n]*\n[ \t]*raise NotImplementedError\(\"TODO \d+:[^\n]*\"\)", re.MULTILINE)
+            pasted = todo_lines.sub(lambda _, code=code: code, starter[cell_id])
+        expected = re.sub(r"^[ \t]*# (BEGIN SOLUTION[^\n]*|END SOLUTION[ \t]*)\n", "", solutions[cell_id], flags=re.MULTILINE)
+        assert pasted == expected, f"Pasting the solution shown under {help_id} doesn't give back the solution cell"
+
+
+def test_setup_replaces_an_outdated_workshop_utils(tmp_path: Path) -> None:
+    """A Colab runtime that still has an older workshop_utils.py (downloaded, and maybe imported, before an update)
+    gets the current one from the setup cell instead of an ImportError."""
+    from build_notebooks import CHECK_IMPORTS, SETUP_BOOTSTRAP
+
+    (tmp_path / "workshop_utils.py").write_text("def load_prices():\n    pass\n", encoding="utf-8")
+    current = ROOT / "src" / "workshop_utils.py"
+    code = "\n".join(
+        [
+            "import shutil, sys, urllib.request",
+            "sys.path.insert(0, '')",
+            "import workshop_utils  # the outdated copy, imported earlier in the same runtime",
+            f"urllib.request.urlretrieve = lambda url, dest: shutil.copy({str(current)!r}, dest)",
+            SETUP_BOOTSTRAP,
+            CHECK_IMPORTS,
+            "print('setup ok')",
+        ]
+    )
+    proc = subprocess.run([sys.executable, "-c", code], cwd=tmp_path, capture_output=True, text=True, timeout=120, check=False)
+    assert proc.returncode == 0, proc.stderr[-2000:]
+    assert "setup ok" in proc.stdout
+
+
+def test_ci_runs_every_test_file() -> None:
+    """CI runs every tests/test_*.py file, so each one gates pull requests."""
+    ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    missing = [p.name for p in sorted((ROOT / "tests").glob("test_*.py")) if f"tests/{p.name}" not in ci]
+    assert not missing, f"CI doesn't run: {missing}"
+
+
 # --- 5. 'Catch up' cells in a fresh kernel -----------------------------------------------
 
 
