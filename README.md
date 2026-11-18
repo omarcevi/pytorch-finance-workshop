@@ -21,6 +21,8 @@ The notebooks, their printed output and charts, and the written guide are all in
 | **`workshop_starter.ipynb`** | **Starter notebook (for participants):** contains the `TODO` cells we fill in together during the workshop and a **"🔄 Catch up"** recovery cell at the start of each part. | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/omarcevi/pytorch-finance-workshop/blob/main/notebooks/workshop_starter.ipynb) |
 | **`workshop_solution.ipynb`** | **Solution notebook (reference):** the full version with all solution code and measured outputs. | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/omarcevi/pytorch-finance-workshop/blob/main/notebooks/workshop_solution.ipynb) |
 
+Every ✏️ TODO cell ends with a ✅ check that says whether your code is right and what to fix if not; in the starter notebook a collapsed 💡 hint and 👀 solution sit under each TODO.
+
 ---
 
 ## Workshop Story and Schedule

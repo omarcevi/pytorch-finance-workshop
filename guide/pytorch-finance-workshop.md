@@ -23,6 +23,8 @@ Deep learning on financial time series is full of traps: models that look "perfe
 - **Starter notebook (the one we fill in together during the workshop):** [Open in Colab](https://colab.research.google.com/github/omarcevi/pytorch-finance-workshop/blob/main/notebooks/workshop_starter.ipynb)
 - **Solution notebook (reference with all code and outputs filled in):** [Open in Colab](https://colab.research.google.com/github/omarcevi/pytorch-finance-workshop/blob/main/notebooks/workshop_solution.ipynb)
 
+**How the notebooks help you:** each ✏️ TODO cell ends with a ✅ check that tells you whether your code is right, and what to fix if not. In the starter notebook a collapsed 💡 Hint and 👀 Solution sit under every TODO, and the 🔄 Catch up cell at the start of each part rebuilds everything up to that point.
+
 **Schedule (Wednesday 18 November 2026, 16:30–18:45 · DMF-214):**
 
 | Time | Part | What we do and learn |
@@ -50,7 +52,7 @@ Deep learning on financial time series is full of traps: models that look "perfe
 
 **Step-by-step code walkthrough:**
 
-After running the first setup cell, we load `THYAO.IS` by calling `load_prices` in **TODO 1** (`sec1-load-code`):
+After running the ⚙️ Setup cell, we load `THYAO.IS` by calling `load_prices` in **TODO 1** (`sec1-load-code`):
 
 ```python
 TICKER = "THYAO.IS"

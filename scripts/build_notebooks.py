@@ -33,11 +33,13 @@ def md_cell(cell_id: str, text: str) -> dict:
     }
 
 
-def code_cell(cell_id: str, code: str, *, collapsed: bool = False) -> dict:
+def code_cell(cell_id: str, code: str, *, collapsed: bool = False, hint: str | None = None) -> dict:
     meta: dict = {}
     if collapsed:
         meta["cellView"] = "form"
         meta["jupyter"] = {"source_hidden": True}
+    if hint:
+        meta["workshop"] = {"hint": hint}  # make_starter.py turns this into a collapsed 💡 Hint
     return {
         "cell_type": "code",
         "execution_count": None,
@@ -52,22 +54,33 @@ SETUP_BOOTSTRAP = """import pathlib, sys, urllib.request
 for _p in [pathlib.Path("src"), pathlib.Path("../src"), pathlib.Path("/content/pytorch-finance-workshop/src")]:
     if (_p / "workshop_utils.py").exists() and str(_p.resolve()) not in sys.path:
         sys.path.insert(0, str(_p.resolve()))
-if not any((pathlib.Path(p) / "workshop_utils.py").exists() for p in sys.path + ["."]):
+# A copy downloaded before an update (no setup_notebook yet) is replaced, and any import of it is forgotten.
+_local = pathlib.Path("workshop_utils.py")
+_outdated = _local.exists() and "def setup_notebook" not in _local.read_text(encoding="utf-8")
+if _outdated or not any((pathlib.Path(p) / "workshop_utils.py").exists() for p in sys.path + ["."]):
     urllib.request.urlretrieve(
         "https://raw.githubusercontent.com/omarcevi/pytorch-finance-workshop/main/src/workshop_utils.py",
         "workshop_utils.py",
-    )"""
+    )
+    sys.modules.pop("workshop_utils", None)"""
+
+CHECK_IMPORTS = """from workshop_utils import (
+    check_todo_1, check_todo_2, check_todo_3, check_todo_4, check_todo_5,
+    check_todo_6, check_todo_7, check_todo_8, check_todo_9, setup_notebook,
+)"""
 
 # Catch-up cells run on their own in a reset runtime, so they also reload the common names the rest of
-# their part uses (np, pd, plt, torch, nn, DataLoader, FEATURE_COLS).
-CATCHUP_BOOTSTRAP = SETUP_BOOTSTRAP + """
+# their part uses (np, pd, plt, torch, nn, DataLoader, FEATURE_COLS, the TODO checks) and redo the notebook setup.
+CATCHUP_BOOTSTRAP = SETUP_BOOTSTRAP + f"""
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from workshop_utils import FEATURE_COLS, set_seed"""
+from workshop_utils import FEATURE_COLS, set_seed
+{CHECK_IMPORTS}
+setup_notebook()"""
 
 HOOK_IMAGE_URL = "https://raw.githubusercontent.com/omarcevi/pytorch-finance-workshop/main/docs/hook_preview.png"
 
@@ -84,17 +97,25 @@ def create_solution_notebook() -> dict:
 📍 Işık University Şile Campus, DMF-214 · 🗓️ Wednesday 18 November 2026, 16:30–18:45
 🔗 **Step-by-step guide:** [omarcevi.dev/workshops/pytorch-finance-workshop](https://omarcevi.dev/workshops/pytorch-finance-workshop/)
 
-> ⚠️ **Important (Not Investment Advice):** All code, models and analysis in this workshop are for **machine learning and PyTorch education** only. Nothing here is investment advice, and these models **must not** be used for real trading decisions.""",
+> ⚠️ **Important (Not Investment Advice):** All code, models and analysis in this workshop are for **machine learning and PyTorch education** only. Nothing here is investment advice, and these models **must not** be used for real trading decisions.
+
+### How this notebook works
+| | |
+|---|---|
+| ✏️ **TODO cells** | Replace the `raise NotImplementedError(...)` line with your code, then run the cell. |
+| ✅ **Checks** | Every TODO cell ends with a check that tells you whether your code is right, and what to fix if not. |
+| 💡 **Hints** and 👀 **solutions** | Under each TODO in the starter notebook; click to open. |
+| 🔄 **Catch up** | The first cell of each part rebuilds everything up to that point, if you fell behind or your runtime restarted. |""",
         ),
         # --- Cell 1: environment setup ---
         md_cell(
             "setup-md",
-            """### Setting up
-The first cell downloads the helper module (`workshop_utils.py`) into the runtime and fixes the random seeds so that results come out the same on every computer.""",
+            """### ⚙️ Setup: run this first
+Run the cell below before anything else (click ▶). It downloads the helper module (`workshop_utils.py`), imports PyTorch and friends, and fixes the random seeds so results come out the same on every computer. Its code is hidden; click **Show code** if you're curious.""",
         ),
         code_cell(
             "setup-code",
-            f"""# Prepare the runtime and fix the random seed
+            f"""# @title ⚙️ Setup: run this first {{ display-mode: "form" }}
 {SETUP_BOOTSTRAP}
 import matplotlib.pyplot as plt
 import numpy as np
@@ -134,15 +155,19 @@ from workshop_utils import (
     train_price_lstm,
     walk_forward_evaluation,
 )
+{CHECK_IMPORTS}
 
+setup_notebook()
 set_seed(42)
 print(f"PyTorch version: {{torch.__version__}} | Device: CPU")""",
+            collapsed=True,
         ),
         # --- Part 0: Intro (hook) ---
         md_cell(
             "sec0-md",
             """---
-## Part 0 · Intro: Could We Make Money with This Chart? (16:30–16:40)
+## Part 0 · Intro: Could We Make Money with This Chart?
+*⏱️ Live session: 16:30–16:40*
 
 Search the web for *"stock price prediction with LSTM"* and you will almost always find a chart like the one below: the blue line is the actual price, the red dashed line is the AI model's prediction. The two lines sit almost on top of each other!
 
@@ -150,7 +175,8 @@ So **could we really make money with this model?** Or is there a subtle illusion
         ),
         code_cell(
             "sec0-hook-plot",
-            f"""# A preview of the test-set output of the LSTM price model we will train in Part 4
+            f"""# @title 🎣 The chart we'll explain in Part 4 {{ display-mode: "form" }}
+# A preview of the test-set output of the LSTM price model we will train in Part 4
 import contextlib, io, pathlib
 from IPython.display import Image, display
 from workshop_utils import catch_up_part_4, plot_price_deception
@@ -170,12 +196,14 @@ except Exception:
         _s4 = catch_up_part_4("THYAO.IS")
     plot_price_deception(_s4["test_dates"], _s4["price_res"]["actual_prices"], _s4["price_res"]["predicted_prices"])
     plt.show()""",
+            collapsed=True,
         ),
         # --- Part 1: Setup and data ---
         md_cell(
             "sec1-md",
             """---
-## Part 1 · Setup and Data (16:40–16:55)
+## Part 1 · Setup and Data
+*⏱️ Live session: 16:40–16:55*
 
 In financial time series each trading day is summarised by five numbers (**OHLCV**): **O**pen, **H**igh (the day's highest price), **L**ow (the day's lowest price), **C**lose and **V**olume (trading volume). Companies pay dividends and split their shares over time, so instead of raw prices we use prices adjusted for dividends and splits (**auto-adjusted**), so that no artificial price drops show up in the past.
 
@@ -202,9 +230,11 @@ print("✅ Part 1 environment ready.")""",
 # BEGIN SOLUTION: load the TICKER data into raw_df with the load_prices function
 raw_df = load_prices(TICKER, start="2015-01-01", end="2026-11-17")
 # END SOLUTION
+check_todo_1(raw_df)
 
 print(f"Data shape: {raw_df.shape} | Date range: {raw_df.index.min().date()} -> {raw_df.index.max().date()}")
-display(raw_df.tail(5))""",
+display(raw_df.tail(5).round(2))""",
+            hint='load_prices(ticker, start=..., end=...) returns a DataFrame: pass TICKER and the 2015-01-01 → 2026-11-17 range.',
         ),
         md_cell(
             "sec1-plot-md",
@@ -219,7 +249,8 @@ plt.show()""",
         md_cell(
             "sec2-md",
             """---
-## Part 2 · Cleaning, Features and Data Leakage (16:55–17:15)
+## Part 2 · Cleaning, Features and Data Leakage
+*⏱️ Live session: 16:55–17:15*
 
 The exchange is closed at weekends and on public holidays; and because raw price series rise over time they are not **stationary** (6 TL in 2015 and 300 TL in 2026 are not on the same scale). That is why we build models not on raw prices but on scale-free features such as the **log return** ($r_t = \\ln(P_t / P_{t-1})$), a moving average, volatility and RSI.""",
         ),
@@ -246,12 +277,14 @@ feat_df["log_return"] = np.log(feat_df["Close"] / feat_df["Close"].shift(1))
 feat_df["roll_mean_5"] = feat_df["log_return"].rolling(window=5).mean()
 feat_df["roll_std_10"] = feat_df["log_return"].rolling(window=10).std()
 # END SOLUTION
+check_todo_2(feat_df)
 
 feat_df["rsi_14"] = compute_rsi(feat_df["Close"], period=14) / 100.0
 feat_df["up_day"] = (feat_df["log_return"] > 0.0).astype(np.float32)
 feat_df = feat_df.dropna().copy()
 print("Feature table shape:", feat_df.shape)
 display(feat_df[["Close", "log_return", "roll_mean_5", "roll_std_10", "rsi_14", "up_day"]].tail(4))""",
+            hint='Use np.log on the ratio of Close to Close.shift(1); .rolling(window=...) gives moving windows with .mean() and .std().',
         ),
         md_cell(
             "sec2-split-md",
@@ -263,12 +296,14 @@ With time series, `train_test_split(..., shuffle=True)` is **never** used: testi
             """# BEGIN SOLUTION: split feat_df into 70% train, 15% val and 15% test with the chronological_split function
 train_df, val_df, test_df = chronological_split(feat_df, train_ratio=0.70, val_ratio=0.15)
 # END SOLUTION
+check_todo_3(train_df, val_df, test_df, feat_df)
 
 print(f"Train: {len(train_df)} days ({train_df.index[0].date()} -> {train_df.index[-1].date()})")
 print(f"Val  : {len(val_df)} days ({val_df.index[0].date()} -> {val_df.index[-1].date()})")
 print(f"Test : {len(test_df)} days ({test_df.index[0].date()} -> {test_df.index[-1].date()})")
 fig = plot_chronological_split(train_df, val_df, test_df, ticker=TICKER)
 plt.show()""",
+            hint='chronological_split(df, train_ratio=..., val_ratio=...) returns three DataFrames in time order.',
         ),
         md_cell(
             "sec2-scaler-md",
@@ -286,15 +321,18 @@ x_train = scaler.fit_transform(train_df[FEATURE_COLS].values.astype(np.float32))
 x_val = scaler.transform(val_df[FEATURE_COLS].values.astype(np.float32))
 x_test = scaler.transform(test_df[FEATURE_COLS].values.astype(np.float32))
 # END SOLUTION
+check_todo_4(x_train, x_val, x_test, train_df, val_df, test_df)
 
 print(f"Train mean (about 0): {x_train.mean(axis=0).round(4)}")
 print(f"Test mean           : {x_test.mean(axis=0).round(4)}")""",
+            hint='fit_transform learns the mean and std and applies them; transform only applies what was already learned.',
         ),
         # --- Part 3: PyTorch basics ---
         md_cell(
             "sec3-md",
             """---
-## Part 3 · PyTorch Basics: Tensor, Dataset and LSTM (17:15–17:35)
+## Part 3 · PyTorch Basics: Tensor, Dataset and LSTM
+*⏱️ Live session: 17:15–17:35*
 
 PyTorch's basic building block is `torch.Tensor` (like a NumPy array, but with automatic differentiation and GPU/CPU acceleration). An LSTM expects its input as a 3-D tensor of shape **`(batch_size, seq_len, num_features)`** (number of samples, window length, number of features).""",
         ),
@@ -339,10 +377,12 @@ val_ds = SlidingWindowDataset(x_val, y_val_ret, window_size=WINDOW_SIZE)
 train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True)
 val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False)
 # END SOLUTION
+check_todo_5(train_ds, val_ds, train_loader, val_loader, x_train, x_val, WINDOW_SIZE)
 
 sample_bx, sample_by = next(iter(train_loader))
 print(f"Input batch shape (batch, seq_len, features): {sample_bx.shape}")
 print(f"Target batch shape (batch,)                  : {sample_by.shape}")""",
+            hint='SlidingWindowDataset(features, targets, window_size=WINDOW_SIZE), then DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=...).',
         ),
         md_cell(
             "sec3-model-md",
@@ -364,6 +404,8 @@ The `nn.LSTM(input_dim, hidden_dim, batch_first=True)` layer produces a hidden s
         return self.fc(last_step).squeeze(-1)
         # END SOLUTION
 
+check_todo_6(SimpleLSTM)
+
 set_seed(42)
 demo_model = SimpleLSTM(input_dim=len(FEATURE_COLS), hidden_dim=32)
 with torch.no_grad():
@@ -373,6 +415,7 @@ print(f"1) Input tensor (bx)           : {sample_bx.shape}")
 print(f"2) LSTM all steps (lstm_out)   : {lstm_out.shape}")
 print(f"3) Last time step ([:, -1, :]) : {lstm_out[:, -1, :].shape}")
 print(f"4) Model output (pred_out)     : {pred_out.shape}")""",
+            hint='self.lstm(x) returns (out, (h, c)); out has shape (batch, seq_len, hidden). Take the last step, pass it through self.fc and drop the trailing size-1 dimension.',
         ),
         md_cell(
             "sec3-train-md",
@@ -406,15 +449,18 @@ for epoch in range(10):
         v_loss = np.mean([criterion(demo_model(vx), vy).item() for vx, vy in val_loader])
     val_losses.append(float(v_loss))
 
+check_todo_7(demo_model, train_loader, train_losses)
 print(f"Last epoch (10) -> Train MSE: {train_losses[-1]:.6f} | Val MSE: {val_losses[-1]:.6f}")
 fig = plot_training_curves(train_losses, val_losses, title="Part 3 — LSTM Training and Validation Loss")
 plt.show()""",
+            hint='Reset the gradients, run the model, compute the loss, backpropagate, then let the optimizer update the weights.',
         ),
         # --- Break ---
         md_cell(
             "break-md",
             """---
-## ☕ Break (17:35–17:45 · 10 minutes)
+## ☕ Break (10 minutes)
+*⏱️ Live session: 17:35–17:45*
 
 Grab your tea or coffee! After the break we will produce the **"perfect" price prediction chart** from Part 0 and reveal the surprise behind it.""",
         ),
@@ -422,7 +468,8 @@ Grab your tea or coffee! After the break we will produce the **"perfect" price p
         md_cell(
             "sec4-md",
             """---
-## Part 4 · Price Prediction and the Surprise (17:45–18:05)
+## Part 4 · Price Prediction and the Surprise
+*⏱️ Live session: 17:45–18:05*
 
 Now let's do what many online tutorials do: give the LSTM the **close prices** of the last 30 days and have it predict **tomorrow's close (TL)**.
 
@@ -474,6 +521,7 @@ naive_mae = float(np.mean(np.abs(actual_prices - naive_prices)))
 lstm_rmse = float(np.sqrt(np.mean((actual_prices - predicted_prices) ** 2)))
 naive_rmse = float(np.sqrt(np.mean((actual_prices - naive_prices) ** 2)))
 # END SOLUTION
+check_todo_8(lstm_mae, naive_mae, lstm_rmse, naive_rmse, actual_prices, predicted_prices, naive_prices)
 
 print(f"📊 LSTM price model     -> MAE: {lstm_mae:.2f} TL | RMSE: {lstm_rmse:.2f} TL")
 print(f"📏 Naive baseline (P_t) -> MAE: {naive_mae:.2f} TL | RMSE: {naive_rmse:.2f} TL")
@@ -481,6 +529,7 @@ if naive_mae <= lstm_mae:
     print(f"👉 Result: the naive 'tomorrow = today' rule has {lstm_mae - naive_mae:.2f} TL lower error than the LSTM!")
 else:
     print(f"👉 Result: this time the LSTM beats the naive rule by {naive_mae - lstm_mae:.2f} TL; check the lag chart below before celebrating.")""",
+            hint='MAE averages the absolute errors; RMSE is the square root of the average squared error. np.abs, np.mean and np.sqrt are all you need.',
         ),
         md_cell(
             "sec4-zoom-md",
@@ -503,7 +552,8 @@ plt.show()""",
         md_cell(
             "sec5-md",
             """---
-## Part 5 · The Right Setup: Direction Classification on Returns (18:05–18:25)
+## Part 5 · The Right Setup: Direction Classification on Returns
+*⏱️ Live session: 18:05–18:25*
 
 To escape the copy-yesterday trap we must define the problem correctly:
 1. **Input:** stationary return and technical features (`log_return`, `roll_mean_5`, `roll_std_10`, `rsi_14`).
@@ -547,10 +597,12 @@ cls_res = train_direction_classifier(
     seed=42,
 )
 # END SOLUTION
+check_todo_9(cls_res, test_df, WINDOW_SIZE)
 
 print(f"🎯 LSTM test accuracy       : {cls_res['test_acc'] * 100:.2f}%")
 print(f"⚖️ LSTM balanced accuracy   : {cls_res['test_bal_acc'] * 100:.2f}%")
 print(f"📏 Majority-class baseline  : {cls_res['majority_acc'] * 100:.2f}%")""",
+            hint='Pass the train, validation and test arrays in that order (features, then targets), with window_size=WINDOW_SIZE, epochs=15 and seed=42.',
         ),
         md_cell(
             "sec5-wf-md",
@@ -579,7 +631,8 @@ plt.show()""",
         md_cell(
             "sec6-md",
             """---
-## Part 6 · Challenges (18:25–18:40)
+## Part 6 · Challenges
+*⏱️ Live session: 18:25–18:40*
 
 Your turn! Try the challenges below at your own pace. Each has a hint and a collapsed (**Show solution**) cell underneath.""",
         ),
@@ -699,7 +752,8 @@ plt.show()""",
         md_cell(
             "sec7-md",
             """---
-## Part 7 · Wrap-up (18:40–18:45)
+## Part 7 · Wrap-up
+*⏱️ Live session: 18:40–18:45*
 
 ### Three takeaways
 1. **Always compare with a naive baseline:** a deep learning model that can't beat "tomorrow = today", however complex, is just repeating yesterday's price.

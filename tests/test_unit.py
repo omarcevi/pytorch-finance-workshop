@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -189,8 +190,8 @@ def test_make_starter_strips_all_solution_blocks() -> None:
     assert "secret_solution_var" not in stripped
     assert "# BEGIN SOLUTION" not in stripped
     assert "# END SOLUTION" not in stripped
-    assert "    # TODO: compute the y value" in stripped
-    assert '    raise NotImplementedError("TODO: compute the y value")' in stripped
+    assert "    # TODO 1: compute the y value" in stripped
+    assert '    raise NotImplementedError("TODO 1: compute the y value")' in stripped
 
     sol_path = ROOT / "notebooks" / "workshop_solution.ipynb"
     sta_path = ROOT / "notebooks" / "workshop_starter.ipynb"
@@ -210,9 +211,114 @@ def test_make_starter_strips_all_solution_blocks() -> None:
         c["id"] for c in sol_nb["cells"] if c["cell_type"] == "code" and "# BEGIN SOLUTION" in "".join(c["source"])
     ]
     sta_todo_cells = [
-        c["id"] for c in sta_nb["cells"] if c["cell_type"] == "code" and "NotImplementedError(\"TODO:" in "".join(c["source"])
+        c["id"] for c in sta_nb["cells"] if c["cell_type"] == "code" and re.search(r'NotImplementedError\("TODO \d+:', "".join(c["source"]))
     ]
     assert sol_todo_cells == sta_todo_cells
+
+
+def test_every_todo_cell_has_a_check_and_a_hint() -> None:
+    """Every solution cell with a TODO block calls its self-check and carries a hint for the starter."""
+    sol_nb = json.loads((ROOT / "notebooks" / "workshop_solution.ipynb").read_text(encoding="utf-8"))
+    todo_cells = [c for c in sol_nb["cells"] if c["cell_type"] == "code" and "# BEGIN SOLUTION" in "".join(c["source"])]
+    numbers = []
+    for cell in todo_cells:
+        source = "".join(cell["source"])
+        found = re.findall(r"check_todo_(\d+)\(", source)
+        assert found, f"{cell['id']} has no check_todo_ call"
+        numbers.extend(int(n) for n in found)
+        hint = cell.get("metadata", {}).get("workshop", {}).get("hint")
+        assert isinstance(hint, str) and hint.strip(), f"{cell['id']} has no hint"
+    assert numbers == list(range(1, 10))
+
+
+def test_make_starter_adds_help_cells() -> None:
+    """Each TODO cell is followed by a collapsed hint (when the solution cell has one) and a collapsed solution."""
+
+    def code(cell_id: str, source: str, hint: str | None = None) -> dict:
+        meta = {"workshop": {"hint": hint}} if hint else {}
+        return {"cell_type": "code", "id": cell_id, "metadata": meta, "outputs": [], "execution_count": None, "source": source}
+
+    solution_nb = {
+        "cells": [
+            {"cell_type": "markdown", "id": "intro", "metadata": {}, "source": "# Title"},
+            code("first", "x = 1\n# BEGIN SOLUTION: compute the y value\nsecret_solution_var = x + 41\n# END SOLUTION\nprint(x)", hint="use x + 41"),
+            code("second", "# BEGIN SOLUTION: double it\nz = 2 * secret_solution_var\n# END SOLUTION"),
+        ],
+        "metadata": {},
+        "nbformat": 4,
+        "nbformat_minor": 5,
+    }
+    starter, count = convert_notebook(solution_nb)
+    assert count == 2
+    ids = [c["id"] for c in starter["cells"]]
+    assert ids == ["intro", "first", "first-help", "second", "second-help"]
+
+    help_1 = "".join(starter["cells"][2]["source"])
+    assert starter["cells"][2]["cell_type"] == "markdown"
+    for text in ("💡 Hint", "use x + 41", "👀 Show the solution", "secret_solution_var = x + 41"):
+        assert text in help_1
+    assert "\n```python\n" in help_1
+
+    assert 'raise NotImplementedError("TODO 2: double it")' in "".join(starter["cells"][3]["source"])
+    help_2 = "".join(starter["cells"][4]["source"])
+    assert "💡 Hint" not in help_2
+    assert "z = 2 * secret_solution_var" in help_2
+
+
+def test_pasting_each_shown_solution_restores_the_solution_cell() -> None:
+    """Pasting the code from '👀 Show the solution' as its help cell says gives back the solution cell exactly.
+
+    Solutions that sit inside a method or a loop (TODO 6, 7) would lose their indentation if pasted over the
+    TODO lines, so their help cell shows the whole cell and says to replace the whole cell.
+    """
+    sol_nb = json.loads((ROOT / "notebooks" / "workshop_solution.ipynb").read_text(encoding="utf-8"))
+    sta_nb = json.loads((ROOT / "notebooks" / "workshop_starter.ipynb").read_text(encoding="utf-8"))
+    solutions = {c["id"]: "".join(c["source"]) for c in sol_nb["cells"]}
+    starter = {c["id"]: "".join(c["source"]) for c in sta_nb["cells"]}
+    help_ids = [cid for cid in starter if cid.endswith("-help")]
+    assert len(help_ids) == 9
+
+    for help_id in help_ids:
+        cell_id = help_id.removesuffix("-help")
+        help_text = starter[help_id]
+        code = re.search(r"👀 Show the solution</summary>.*?```python\n(.*?)\n```", help_text, re.DOTALL).group(1)
+        if "Replace the whole cell" in help_text:
+            pasted = code
+        else:
+            todo_lines = re.compile(r"^[ \t]*# TODO \d+:[^\n]*\n[ \t]*raise NotImplementedError\(\"TODO \d+:[^\n]*\"\)", re.MULTILINE)
+            pasted = todo_lines.sub(lambda _, code=code: code, starter[cell_id])
+        expected = re.sub(r"^[ \t]*# (BEGIN SOLUTION[^\n]*|END SOLUTION[ \t]*)\n", "", solutions[cell_id], flags=re.MULTILINE)
+        assert pasted == expected, f"Pasting the solution shown under {help_id} doesn't give back the solution cell"
+
+
+def test_setup_replaces_an_outdated_workshop_utils(tmp_path: Path) -> None:
+    """A Colab runtime that still has an older workshop_utils.py (downloaded, and maybe imported, before an update)
+    gets the current one from the setup cell instead of an ImportError."""
+    from build_notebooks import CHECK_IMPORTS, SETUP_BOOTSTRAP
+
+    (tmp_path / "workshop_utils.py").write_text("def load_prices():\n    pass\n", encoding="utf-8")
+    current = ROOT / "src" / "workshop_utils.py"
+    code = "\n".join(
+        [
+            "import shutil, sys, urllib.request",
+            "sys.path.insert(0, '')",
+            "import workshop_utils  # the outdated copy, imported earlier in the same runtime",
+            f"urllib.request.urlretrieve = lambda url, dest: shutil.copy({str(current)!r}, dest)",
+            SETUP_BOOTSTRAP,
+            CHECK_IMPORTS,
+            "print('setup ok')",
+        ]
+    )
+    proc = subprocess.run([sys.executable, "-c", code], cwd=tmp_path, capture_output=True, text=True, timeout=120, check=False)
+    assert proc.returncode == 0, proc.stderr[-2000:]
+    assert "setup ok" in proc.stdout
+
+
+def test_ci_runs_every_test_file() -> None:
+    """CI runs every tests/test_*.py file, so each one gates pull requests."""
+    ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    missing = [p.name for p in sorted((ROOT / "tests").glob("test_*.py")) if f"tests/{p.name}" not in ci]
+    assert not missing, f"CI doesn't run: {missing}"
 
 
 # --- 5. 'Catch up' cells in a fresh kernel -----------------------------------------------
