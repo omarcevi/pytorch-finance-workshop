@@ -12,7 +12,7 @@ This outline is a **9-slide** plan for the 10-minute opening (Slides 1–5) at t
 - **Title:** Bringing AI to Financial Data: Time Series with PyTorch
 - **Subtitle:** Işık IEEE Computer Society Hands-on Workshop · Omar Elcircevi
 - **Bullets:**
-  - 💻 **Starter notebook (Colab):** `https://colab.research.google.com/github/omarcevi/pytorch-finance-workshop/blob/main/notebooks/workshop_starter.ipynb` *(large QR code + short link on the slide: `omarcevi.dev/w/pytorch-finans`)*
+  - 💻 **Starter notebook (Colab):** `https://colab.research.google.com/github/omarcevi/pytorch-finance-workshop/blob/main/notebooks/workshop_starter.ipynb` *(large QR code on the slide)*
   - 📘 **Step-by-step guide:** `https://omarcevi.dev/workshops/pytorch-finance-workshop/`
   - ⚠️ **Note:** For education only; not investment advice.
 - **Visual:** The Colab badge and a large QR code to the starter notebook.
